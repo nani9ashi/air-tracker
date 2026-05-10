@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Icon Generator — Air Tracker</title>
+<style>
+  body {
+    font-family: system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
+    background: #F5F2ED;
+    color: #2A2620;
+    padding: 32px;
+    max-width: 720px;
+    margin: 0 auto;
+    line-height: 1.6;
+  }
+  h1 { font-size: 22px; margin-bottom: 8px; }
+  p  { color: #7A6F62; font-size: 14px; }
+  .row {
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+    margin-top: 24px;
+  }
+  .card {
+    background: #FBF8F3;
+    border-radius: 16px;
+    padding: 16px;
+    box-shadow:
+      -4px -4px 10px rgba(255,255,255,0.95),
+      4px 4px 10px rgba(120,100,75,0.18);
+    text-align: center;
+  }
+  .card canvas {
+    display: block;
+    border-radius: 12px;
+    background: #fff;
+    margin: 0 auto 10px;
+    width: 168px;
+    height: 168px;
+  }
+  .card .label {
+    font-size: 13px;
+    font-weight: 700;
+    color: #2A2620;
+    margin-bottom: 8px;
+  }
+  .card button {
+    padding: 8px 14px;
+    border: none;
+    border-radius: 10px;
+    background: #6B8E7F;
+    color: #FBF8F3;
+    font-weight: 700;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .card button:hover { background: #4F7066; }
+  .card button:active { transform: scale(0.97); }
+  details { margin-top: 24px; font-size: 13px; }
+  details pre {
+    background: #1F1D1A;
+    color: #ECE5D6;
+    padding: 12px;
+    border-radius: 12px;
+    font-size: 12px;
+    overflow-x: auto;
+  }
+  .all-actions {
+    margin-top: 18px;
+    display: flex;
+    gap: 10px;
+  }
+  .all-actions button {
+    padding: 12px 18px;
+    border: none;
+    border-radius: 12px;
+    background: #2A2620;
+    color: #F5F2ED;
+    font-weight: 700;
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+
+<h1>🛠 Icon Generator</h1>
+<p>
+  このページは <code>icon.svg</code> を読み込んで、PWA 用の PNG（192 / 512 / 180px）を一括ダウンロードするためのツールです。<br>
+  ローカルでこのファイルを開き、下のボタンから書き出してください（保存先はブラウザのダウンロードフォルダ）。
+</p>
+
+<div class="all-actions">
+  <button id="btn-all">すべてをダウンロード</button>
+</div>
+
+<div class="row" id="row"></div>
+
+<details>
+  <summary>使い方の補足</summary>
+  <ul>
+    <li>このファイルは <code>air-tracker/</code> 直下に置いて、<code>icon.svg</code> と同じディレクトリで開く</li>
+    <li>ダウンロードされた PNG をそのまま <code>icon-192.png</code>, <code>icon-512.png</code>, <code>apple-touch-icon-180.png</code> として保存</li>
+    <li>Chrome のダウンロードプロンプトが出る場合は「保存先を指定」して上書き</li>
+  </ul>
+</details>
+
+<script>
+const SIZES = [
+  { name: 'icon-192.png',           size: 192 },
+  { name: 'icon-512.png',           size: 512 },
+  { name: 'apple-touch-icon-180.png', size: 180 },
+];
+
+const row = document.getElementById('row');
+const cards = SIZES.map((cfg) => {
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `
+    <div class="label">${cfg.name} (${cfg.size}×${cfg.size})</div>
+    <canvas width="${cfg.size}" height="${cfg.size}"></canvas>
+    <button data-name="${cfg.name}">⬇ ダウンロード</button>
+  `;
+  row.appendChild(card);
+  return { ...cfg, canvas: card.querySelector('canvas'), btn: card.querySelector('button') };
+});
+
+async function loadSVGAsImage() {
+  const res = await fetch('icon.svg');
+  if (!res.ok) throw new Error('icon.svg を読み込めませんでした (HTTP ' + res.status + ')');
+  const svgText = await res.text();
+  const blob = new Blob([svgText], { type: 'image/svg+xml' });
+  const url = URL.createObjectURL(blob);
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+    img.onerror = (e) => { URL.revokeObjectURL(url); reject(e); };
+    img.src = url;
+  });
+}
+
+async function render() {
+  let img;
+  try { img = await loadSVGAsImage(); }
+  catch (e) {
+    alert('icon.svg を読み込めませんでした。\nこのファイル (icon-generator.html) を icon.svg と同じディレクトリに置いて、ローカルサーバ (例: python -m http.server) 経由で開いてください。\n\n' + e.message);
+    return;
+  }
+  for (const c of cards) {
+    const ctx = c.canvas.getContext('2d');
+    ctx.clearRect(0, 0, c.size, c.size);
+    ctx.drawImage(img, 0, 0, c.size, c.size);
+  }
+}
+
+function download(canvas, name) {
+  canvas.toBlob((blob) => {
+    if (!blob) return;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }, 'image/png');
+}
+
+cards.forEach((c) => c.btn.addEventListener('click', () => download(c.canvas, c.name)));
+
+document.getElementById('btn-all').addEventListener('click', () => {
+  cards.forEach((c, i) => setTimeout(() => download(c.canvas, c.name), i * 350));
+});
+
+render();
+</script>
+</body>
+</html>

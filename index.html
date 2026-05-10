@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#F5F2ED">
+<meta name="description" content="自転車の空気入れからの経過日数を一目で把握できる軽量PWA">
+
+<title>空気入れトラッカー</title>
+
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/svg+xml" href="icon.svg">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon-180.png">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Zen+Maru+Gothic:wght@400;500;700&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="app">
+
+  <header class="header" role="banner">
+    <h1 class="header__title">
+      <span class="emoji" aria-hidden="true">🚲</span>
+      <span class="header__bike-name" id="bike-name">マイバイク</span>
+    </h1>
+    <button class="icon-btn" id="settings-btn" aria-label="設定を開く">
+      <span aria-hidden="true">⚙</span>
+    </button>
+  </header>
+
+  <main>
+    <section class="main-section" aria-labelledby="main-heading">
+      <h2 id="main-heading" class="sr-only">空気入れの状態</h2>
+
+      <div class="gauge" role="img" aria-labelledby="main-heading" aria-describedby="gauge-status-sr">
+        <svg class="gauge__svg" viewBox="0 0 200 200" aria-hidden="true">
+          <circle class="gauge__track" id="gauge-track" />
+          <circle class="gauge__fill"  id="gauge-fill" />
+        </svg>
+        <div class="gauge__center">
+          <div class="gauge__prefix" id="gauge-prefix">あと</div>
+          <div class="gauge__num" id="gauge-num">？</div>
+          <div class="gauge__suffix" id="gauge-suffix">日</div>
+          <div class="gauge__sub" id="gauge-sub"></div>
+          <div class="gauge__hint" id="gauge-hint"></div>
+        </div>
+        <span class="sr-only" id="gauge-status-sr" aria-live="polite"></span>
+      </div>
+
+      <div class="interval">
+        <div class="interval__label">推奨サイクル</div>
+        <div class="interval__segment" id="interval-segment" role="group" aria-label="推奨サイクル">
+          <button class="interval__btn" data-days="7"  aria-pressed="false" aria-label="7日サイクル">7<span class="interval__unit">日</span></button>
+          <button class="interval__btn" data-days="14" aria-pressed="false" aria-label="14日サイクル">14<span class="interval__unit">日</span></button>
+          <button class="interval__btn" data-days="21" aria-pressed="false" aria-label="21日サイクル">21<span class="interval__unit">日</span></button>
+          <button class="interval__btn" data-days="30" aria-pressed="false" aria-label="30日サイクル">30<span class="interval__unit">日</span></button>
+          <button class="interval__btn" data-custom="true" aria-pressed="false" aria-label="カスタムサイクル（有料機能）">
+            <span class="interval__label-num">カスタム</span>
+            <span class="interval__unit">✦ 有料</span>
+          </button>
+        </div>
+      </div>
+
+      <button class="history-link" id="history-link" type="button" aria-label="履歴を表示">
+        <span aria-hidden="true">📊</span> 履歴とサマリー
+      </button>
+    </section>
+
+    <section class="sub-section" aria-label="その他のメンテ項目（v2予定）">
+      <!-- v1 では非表示。v2 で chain / brake / tire 等を追加する想定 -->
+    </section>
+  </main>
+
+  <div class="action-bar" role="region" aria-label="メインアクション">
+    <div class="action-bar__inner">
+      <button class="action-btn" id="action-btn" type="button" aria-label="空気を入れたことを記録する">
+        <span class="emoji" aria-hidden="true">🚲</span>
+        <span>空気入れた！</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="ad-slot" role="complementary" aria-label="広告枠">
+    <span>※ 広告枠（v1 では空欄）</span>
+  </div>
+
+</div>
+
+<!-- ======== Reset confirm modal ======== -->
+<div class="overlay" id="reset-overlay" role="dialog" aria-modal="true" aria-labelledby="reset-title" aria-hidden="true">
+  <div class="sheet">
+    <div class="sheet__handle" aria-hidden="true"></div>
+    <h2 class="sheet__title" id="reset-title">空気入れの記録</h2>
+    <div class="sheet__body">
+      <p>いつ空気を入れましたか？</p>
+      <div class="date-choices" role="group" aria-label="日付の選択">
+        <button class="date-choice" id="date-choice-today" type="button" aria-pressed="true">今日<small>now</small></button>
+        <button class="date-choice" id="date-choice-yesterday" type="button" aria-pressed="false">昨日<small>-1 day</small></button>
+        <button class="date-choice date-choice--full" id="date-choice-custom" type="button" aria-pressed="false">📅 カレンダーから選ぶ</button>
+      </div>
+      <div class="date-input-row" id="date-input-row">
+        <input type="date" id="date-input" aria-label="日付を選択">
+      </div>
+    </div>
+    <div class="sheet__actions">
+      <button class="btn btn--ghost" id="reset-cancel" type="button">やめる</button>
+      <button class="btn btn--primary" id="reset-confirm" type="button">記録する</button>
+    </div>
+    <button class="sr-only" id="reset-close" type="button">閉じる</button>
+  </div>
+</div>
+
+<!-- ======== Custom interval modal ======== -->
+<div class="overlay" id="custom-overlay" role="dialog" aria-modal="true" aria-labelledby="custom-title" aria-hidden="true">
+  <div class="sheet">
+    <div class="sheet__handle" aria-hidden="true"></div>
+    <h2 class="sheet__title" id="custom-title">カスタムサイクル</h2>
+    <div class="sheet__body">
+      <p>推奨サイクルを自由な日数に設定できます。</p>
+      <div class="number-input">
+        <button id="custom-dec" type="button" aria-label="日数を1減らす">−</button>
+        <input type="number" id="custom-input" min="1" max="365" inputmode="numeric" aria-label="日数">
+        <button id="custom-inc" type="button" aria-label="日数を1増やす">＋</button>
+        <span class="number-input__unit">日</span>
+      </div>
+    </div>
+    <div class="sheet__actions">
+      <button class="btn btn--ghost" id="custom-cancel" type="button">やめる</button>
+      <button class="btn btn--primary" id="custom-confirm" type="button">適用する</button>
+    </div>
+    <button class="sr-only" id="custom-close" type="button">閉じる</button>
+  </div>
+</div>
+
+<!-- ======== History modal ======== -->
+<div class="overlay" id="history-overlay" role="dialog" aria-modal="true" aria-labelledby="history-title" aria-hidden="true">
+  <div class="sheet">
+    <div class="sheet__handle" aria-hidden="true"></div>
+    <h2 class="sheet__title" id="history-title">履歴とサマリー</h2>
+    <div class="sheet__body">
+
+      <div class="history-summary" role="list">
+        <div class="history-stat" role="listitem">
+          <div class="history-stat__label">平均間隔</div>
+          <div><span class="history-stat__value" id="history-avg">—</span><span class="history-stat__unit">日</span></div>
+        </div>
+        <div class="history-stat" role="listitem">
+          <div class="history-stat__label">記録回数</div>
+          <div><span class="history-stat__value" id="history-count">0</span><span class="history-stat__unit">回</span></div>
+        </div>
+        <div class="history-stat" role="listitem">
+          <div class="history-stat__label">連続達成</div>
+          <div><span class="history-stat__value" id="history-streak">0</span><span class="history-stat__unit">回</span></div>
+        </div>
+      </div>
+
+      <p class="history-trend" id="history-trend">空気入れの記録が増えると傾向が表示されます。</p>
+
+      <div class="heatmap-section">
+        <div class="heatmap-title">直近 3ヶ月の記録</div>
+        <div class="heatmap" id="heatmap" aria-label="直近3ヶ月の記録ヒートマップ"></div>
+      </div>
+
+      <div class="history-list" id="history-list" aria-label="履歴の一覧"></div>
+
+      <p class="history-footer" id="history-footer">最新 30 件まで保存</p>
+    </div>
+    <div class="sheet__actions">
+      <button class="btn btn--secondary" id="history-close" type="button">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<!-- ======== Settings modal ======== -->
+<div class="overlay" id="settings-overlay" role="dialog" aria-modal="true" aria-labelledby="settings-title" aria-hidden="true">
+  <div class="sheet">
+    <div class="sheet__handle" aria-hidden="true"></div>
+    <h2 class="sheet__title" id="settings-title">設定</h2>
+    <div class="sheet__body">
+
+      <div class="settings-row">
+        <div>
+          <div class="settings-row__label">自転車の名前</div>
+          <div class="settings-row__hint">最大 40 文字</div>
+        </div>
+        <input type="text" id="settings-bike-name" maxlength="40" aria-label="自転車の名前">
+      </div>
+
+      <div class="settings-row">
+        <div>
+          <div class="settings-row__label">テーマ</div>
+          <div class="settings-row__hint">端末の設定に追従 / 固定</div>
+        </div>
+        <div class="theme-group" id="theme-group" role="radiogroup" aria-label="テーマ">
+          <button data-theme="auto"  type="button" role="radio" aria-pressed="false">自動</button>
+          <button data-theme="light" type="button" role="radio" aria-pressed="false">ライト</button>
+          <button data-theme="dark"  type="button" role="radio" aria-pressed="false">ダーク</button>
+        </div>
+      </div>
+
+      <div class="settings-row" style="display:block">
+        <div class="settings-row__label" style="margin-bottom:8px">データ管理</div>
+        <div class="settings-actions">
+          <button class="btn btn--secondary" id="settings-export" type="button">⬇ 書き出し</button>
+          <button class="btn btn--secondary" id="settings-import" type="button">⬆ 読み込み</button>
+          <input type="file" id="settings-import-file" accept="application/json" hidden>
+        </div>
+        <div class="settings-row__hint" style="margin-top:6px">JSONファイルとして保存・復元できます</div>
+      </div>
+
+      <div class="settings-meta">
+        空気入れトラッカー v2.0.0<br>
+        <a href="#" tabindex="0">プライバシーポリシー</a>
+      </div>
+    </div>
+    <div class="sheet__actions">
+      <button class="btn btn--secondary" id="settings-close" type="button">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<!-- ======== Upgrade (paywall preview) modal ======== -->
+<div class="overlay upgrade-modal" id="upgrade-overlay" role="dialog" aria-modal="true" aria-labelledby="upgrade-title" aria-hidden="true">
+  <div class="sheet">
+    <div class="sheet__handle" aria-hidden="true"></div>
+    <h2 class="sheet__title" id="upgrade-title">✦ 有料版で利用可能</h2>
+    <div class="sheet__body">
+      <p>カスタムサイクルは有料版の機能です。今後のアップデートで利用できるようになります。</p>
+      <ul class="upgrade-list">
+        <li>サイクル日数を自由に設定</li>
+        <li>自転車を複数台登録</li>
+        <li>履歴を全期間で保存</li>
+        <li>ヒートマップを全期間で表示</li>
+        <li>広告非表示</li>
+      </ul>
+    </div>
+    <div class="sheet__actions">
+      <button class="btn btn--primary" id="upgrade-ok" type="button">わかった</button>
+    </div>
+    <button class="sr-only" id="upgrade-close" type="button">閉じる</button>
+  </div>
+</div>
+
+<!-- ======== Toast ======== -->
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="app.js"></script>
+</body>
+</html>

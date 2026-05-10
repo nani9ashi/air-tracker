@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Air Tracker">
+  <defs>
+    <radialGradient id="bgGrad" cx="35%" cy="30%" r="80%">
+      <stop offset="0%" stop-color="#7FA493"/>
+      <stop offset="100%" stop-color="#5C7E70"/>
+    </radialGradient>
+    <linearGradient id="tireGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FBF8F3"/>
+      <stop offset="100%" stop-color="#E8DFD0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background (full bleed for maskable safe-zone) -->
+  <rect width="512" height="512" fill="url(#bgGrad)"/>
+
+  <!-- Soft inner ring shadow for depth -->
+  <circle cx="256" cy="262" r="172" fill="none" stroke="rgba(0,0,0,0.10)" stroke-width="2"/>
+
+  <!-- Tire (thick outer ring) -->
+  <circle cx="256" cy="262" r="160" fill="none" stroke="url(#tireGrad)" stroke-width="34"/>
+
+  <!-- Spokes -->
+  <g stroke="#FBF8F3" stroke-width="6" stroke-linecap="round" opacity="0.95">
+    <line x1="256" y1="262" x2="256" y2="116"/>
+    <line x1="256" y1="262" x2="402" y2="262"/>
+    <line x1="256" y1="262" x2="256" y2="408"/>
+    <line x1="256" y1="262" x2="110" y2="262"/>
+    <line x1="256" y1="262" x2="359" y2="159"/>
+    <line x1="256" y1="262" x2="153" y2="159"/>
+    <line x1="256" y1="262" x2="359" y2="365"/>
+    <line x1="256" y1="262" x2="153" y2="365"/>
+  </g>
+
+  <!-- Hub -->
+  <circle cx="256" cy="262" r="26" fill="#FBF8F3"/>
+  <circle cx="256" cy="262" r="10" fill="#5C7E70"/>
+
+  <!-- Valve stem (top, indicates "tire" specifically) -->
+  <rect x="246" y="78" width="20" height="34" fill="#FBF8F3" rx="6"/>
+  <rect x="240" y="100" width="32" height="14" fill="#FBF8F3" rx="4"/>
+
+  <!-- Air puffs above valve (subtle, indicates "air" being added) -->
+  <g fill="#FBF8F3" opacity="0.85">
+    <circle cx="216" cy="60" r="9"/>
+    <circle cx="296" cy="56" r="7"/>
+    <circle cx="256" cy="40" r="5"/>
+  </g>
+</svg>
