@@ -1,0 +1,118 @@
+// ============================================================
+// date.js — 経過日数・残日数・状態判定の純粋関数。
+// すべて「ローカルカレンダー日」で算出（タイムゾーン/日付境界の取り違え防止）。
+// ============================================================
+
+const MS_PER_DAY = 86400000
+
+// ローカルの 0:00 に丸めた Date を返す。
+export function startOfDayLocal(d) {
+  const x = new Date(d)
+  x.setHours(0, 0, 0, 0)
+  return x
+}
+
+// from から to までの「日数」差（ローカルカレンダー日）。to 既定は今日。
+// 例: 昨日入れたなら 1。DST は丸めで吸収。
+export function daysBetween(fromISO, to = new Date()) {
+  const from = startOfDayLocal(fromISO).getTime()
+  const toMs = startOfDayLocal(to).getTime()
+  return Math.round((toMs - from) / MS_PER_DAY)
+}
+
+function clamp(n, lo, hi) {
+  return Math.max(lo, Math.min(hi, n))
+}
+
+/**
+ * 状態を算出する。色だけに依存せず state/message/icon でも判別できるようにする。
+ * 返り値:
+ *  - state: 'unset' | 'ok' | 'soon' | 'overdue'
+ *  - elapsed: 経過日数（unset は null）
+ *  - remaining: 残日数（intervalDays - elapsed。負＝超過）
+ *  - overdueBy: 超過日数（overdue のとき正、それ以外 0）
+ *  - progress: リング充填率 0..1（残り割合）
+ *  - tone: ProgressRing/配色用 'accent' | 'warning' | 'energy'
+ *  - message / icon: 表示用
+ */
+export function computeStatus(lastReset, intervalDays, now = new Date()) {
+  const interval = Number(intervalDays) || 14
+
+  if (!lastReset) {
+    return {
+      state: 'unset',
+      elapsed: null,
+      remaining: null,
+      overdueBy: 0,
+      progress: 1,
+      tone: 'accent',
+      message: 'まずは空気を入れて記録しよう',
+      icon: '🚲',
+    }
+  }
+
+  const elapsed = daysBetween(lastReset, now)
+  const remaining = interval - elapsed
+  const progress = clamp(remaining / interval, 0, 1)
+
+  if (remaining <= 0) {
+    return {
+      state: 'overdue',
+      elapsed,
+      remaining,
+      overdueBy: Math.abs(remaining),
+      progress: 0,
+      tone: 'energy',
+      message: '空気入れどき！',
+      icon: '⚠',
+    }
+  }
+
+  // 残り割合が 25% 以下、または残り2日以下なら「そろそろ」。
+  if (remaining / interval <= 0.25 || remaining <= 2) {
+    return {
+      state: 'soon',
+      elapsed,
+      remaining,
+      overdueBy: 0,
+      progress,
+      tone: 'warning',
+      message: 'そろそろ',
+      icon: '⏳',
+    }
+  }
+
+  return {
+    state: 'ok',
+    elapsed,
+    remaining,
+    overdueBy: 0,
+    progress,
+    tone: 'accent',
+    message: 'まだ大丈夫',
+    icon: '✓',
+  }
+}
+
+// ローカル日付を input[type=date] 用 'YYYY-MM-DD' に変換。
+export function toDateInputValue(d = new Date()) {
+  const x = startOfDayLocal(d)
+  const y = x.getFullYear()
+  const m = String(x.getMonth() + 1).padStart(2, '0')
+  const day = String(x.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+// 'YYYY-MM-DD'（ローカル日付）→ その日の正午のローカル時刻の ISO 文字列。
+// 正午にするのは、保存後に別TZで解釈されても日付がずれにくくするため。
+export function dateInputToISO(value) {
+  const [y, m, d] = value.split('-').map(Number)
+  return new Date(y, m - 1, d, 12, 0, 0, 0).toISOString()
+}
+
+// 日付の和文表示（例: 6月20日(金)）。
+const WD = ['日', '月', '火', '水', '木', '金', '土']
+export function formatDateJP(d) {
+  const x = new Date(d)
+  return `${x.getMonth() + 1}月${x.getDate()}日(${WD[x.getDay()]})`
+}

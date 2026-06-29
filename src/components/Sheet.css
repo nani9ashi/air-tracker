@@ -1,0 +1,57 @@
+.sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.sheet__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
+  animation: sheet-fade var(--dur-base) var(--ease-out);
+}
+
+.sheet__panel {
+  position: relative;
+  width: 100%;
+  max-width: var(--screen-max);
+  background: var(--bg-elevated);
+  border-top-left-radius: var(--radius-xl);
+  border-top-right-radius: var(--radius-xl);
+  border: 1px solid var(--glass-border-soft);
+  border-bottom: none;
+  box-shadow: var(--shadow-lg);
+  padding: var(--space-4) var(--gutter-screen)
+    calc(var(--space-7) + env(safe-area-inset-bottom, 0));
+  animation: sheet-rise var(--dur-slow) var(--ease-spring);
+}
+
+.sheet__handle {
+  width: 40px;
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--border-strong);
+  margin: 0 auto var(--space-4);
+}
+
+.sheet__title {
+  margin-bottom: var(--space-5);
+  text-align: center;
+}
+
+@keyframes sheet-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes sheet-rise {
+  from {
+    transform: translateY(100%);
+  }
+}
