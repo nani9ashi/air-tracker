@@ -1,0 +1,16 @@
+.glass-card {
+  background: var(--glass-fill);
+  -webkit-backdrop-filter: blur(var(--blur-glass));
+  backdrop-filter: blur(var(--blur-glass));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card), var(--inset-glass);
+  padding: var(--pad-card);
+}
+
+.glass-card--strong {
+  background: var(--glass-fill-strong);
+  -webkit-backdrop-filter: blur(var(--blur-strong));
+  backdrop-filter: blur(var(--blur-strong));
+  border-color: var(--border-strong);
+}

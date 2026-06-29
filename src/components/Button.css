@@ -1,0 +1,76 @@
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: var(--control-h-md);
+  padding: 0 var(--space-6);
+  border-radius: var(--radius-pill);
+  font-family: var(--font-jp);
+  font-weight: var(--fw-bold);
+  font-size: var(--fs-title);
+  letter-spacing: var(--ls-jp);
+  line-height: 1;
+  position: relative;
+  isolation: isolate;
+  transition: transform var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-base) var(--ease-out),
+    filter var(--dur-base) var(--ease-out);
+  will-change: transform;
+}
+
+.btn--md {
+  min-height: var(--control-h-md);
+}
+.btn--lg {
+  min-height: var(--control-h-lg);
+  font-size: var(--fs-h3);
+}
+.btn--full {
+  width: 100%;
+}
+
+.btn:active {
+  transform: translateY(1px) scale(0.99);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* ---- primary: teal グラデ + グロー ---- */
+.btn--primary {
+  background: var(--accent-gradient);
+  color: var(--text-on-accent);
+  box-shadow: var(--glow-accent), var(--inset-glass);
+}
+.btn--primary:hover {
+  filter: brightness(1.05);
+  box-shadow: var(--glow-accent), var(--inset-glass), var(--shadow-md);
+}
+
+/* ---- energy: ember（達成・超過時など） ---- */
+.btn--energy {
+  background: var(--grad-ember);
+  color: var(--text-on-accent);
+  box-shadow: var(--glow-energy), var(--inset-glass);
+}
+.btn--energy:hover {
+  filter: brightness(1.05);
+}
+
+/* ---- ghost: ガラス縁（副アクション） ---- */
+.btn--ghost {
+  background: var(--glass-fill-light);
+  color: var(--text-primary);
+  border: 1px solid var(--glass-border);
+  -webkit-backdrop-filter: blur(var(--blur-glass));
+  backdrop-filter: blur(var(--blur-glass));
+  box-shadow: var(--inset-glass);
+}
+.btn--ghost:hover {
+  border-color: var(--border-strong);
+  background: var(--glass-fill);
+}

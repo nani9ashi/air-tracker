@@ -1,0 +1,37 @@
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--tap-min);
+  height: var(--tap-min);
+  border-radius: var(--radius-circle);
+  color: var(--text-secondary);
+  transition: background var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out);
+}
+
+.icon-btn__glyph {
+  font-size: var(--icon-md);
+  line-height: 1;
+}
+
+.icon-btn:active {
+  transform: scale(0.92);
+}
+
+.icon-btn--glass {
+  background: var(--glass-fill-light);
+  border: 1px solid var(--glass-border-soft);
+}
+.icon-btn--glass:hover {
+  color: var(--text-primary);
+  border-color: var(--glass-border);
+}
+
+.icon-btn--bare {
+  background: transparent;
+}
+.icon-btn--bare:hover {
+  background: var(--glass-fill-light);
+  color: var(--text-primary);
+}
