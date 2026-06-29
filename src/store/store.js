@@ -10,6 +10,37 @@ const VERSION = 2
 const DEFAULT_BIKE_NAME = 'マイバイク'
 const PRESET_INTERVALS = [7, 14, 21, 28]
 
+// 履歴エントリ用の安定 ID。
+let __idSeq = 0
+function makeId() {
+  __idSeq += 1
+  const rand = Math.random().toString(36).slice(2, 8)
+  return `h-${Date.now().toString(36)}-${__idSeq}-${rand}`
+}
+
+// 履歴配列を { id, date } へ正規化（旧形式の文字列/ id 欠損を補完）。
+function normalizeHistory(arr) {
+  if (!Array.isArray(arr)) return []
+  return arr
+    .map((h) => {
+      if (!h) return null
+      const date = typeof h === 'string' ? h : h.date
+      if (!date) return null
+      return { id: h.id || makeId(), date }
+    })
+    .filter(Boolean)
+}
+
+// 履歴から lastReset（最新の日付）を再計算。空なら null。
+// ISO(UTC) 文字列は辞書順 = 時系列順。
+function recomputeLastReset(item) {
+  if (!item.history.length) {
+    item.lastReset = null
+    return
+  }
+  item.lastReset = item.history.map((h) => h.date).sort().at(-1)
+}
+
 function makeDefaultState() {
   return {
     version: VERSION,
@@ -52,11 +83,7 @@ function migrate(raw) {
     const item = def.bikes[0].items[0]
     if (raw.lastPump) item.lastReset = raw.lastPump
     if (raw.intervalDays) item.intervalDays = raw.intervalDays
-    if (Array.isArray(raw.history)) {
-      item.history = raw.history
-        .map((d) => ({ date: typeof d === 'string' ? d : d?.date || null }))
-        .filter((h) => h.date)
-    }
+    item.history = normalizeHistory(raw.history)
     return def
   }
 
@@ -78,7 +105,7 @@ function normalize(state) {
                   type: it.type || 'air',
                   lastReset: it.lastReset ?? null,
                   intervalDays: it.intervalDays || 14,
-                  history: Array.isArray(it.history) ? it.history : [],
+                  history: normalizeHistory(it.history),
                 }))
               : def.bikes[0].items,
         }))
@@ -154,7 +181,30 @@ export function pump(dateISO = new Date().toISOString()) {
   const next = structuredCloneState(state)
   const item = getActiveAirItem(next)
   item.lastReset = dateISO
-  item.history.push({ date: dateISO })
+  item.history.push({ id: makeId(), date: dateISO })
+  commit(next)
+}
+
+// 履歴1件の日付を編集。lastReset を再計算。
+export function editHistory(id, dateISO) {
+  if (!id || !dateISO) return
+  const next = structuredCloneState(state)
+  const item = getActiveAirItem(next)
+  const h = item.history.find((x) => x.id === id)
+  if (!h) return
+  h.date = dateISO
+  recomputeLastReset(item)
+  commit(next)
+}
+
+// 履歴1件を削除。lastReset を再計算（全削除で未記録に戻る）。
+export function removeHistory(id) {
+  const next = structuredCloneState(state)
+  const item = getActiveAirItem(next)
+  const i = item.history.findIndex((x) => x.id === id)
+  if (i === -1) return
+  item.history.splice(i, 1)
+  recomputeLastReset(item)
   commit(next)
 }
 
