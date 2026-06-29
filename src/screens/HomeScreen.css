@@ -18,6 +18,20 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  min-height: var(--tap-min);
+  padding: var(--space-1) var(--space-2);
+  margin-left: calc(var(--space-2) * -1);
+  border-radius: var(--radius-pill);
+  color: var(--text-primary);
+  transition: background var(--dur-fast) var(--ease-out);
+}
+.home__bike:hover {
+  background: var(--glass-fill-light);
+}
+.home__bike-caret {
+  color: var(--text-muted);
+  font-size: var(--fs-h3);
+  line-height: 1;
 }
 
 .home__main {

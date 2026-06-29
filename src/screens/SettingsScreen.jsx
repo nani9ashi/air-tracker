@@ -7,6 +7,8 @@ import {
   setTheme,
   exportJSON,
   importJSON,
+  addBike,
+  removeBike,
 } from '../store/store.js'
 import { toDateInputValue } from '../lib/date.js'
 import './SettingsScreen.css'
@@ -21,6 +23,19 @@ export default function SettingsScreen() {
   const state = useStore()
   const bike = getActiveBike(state)
   const theme = state.settings.theme
+  const canDelete = state.bikes.length > 1
+
+  const handleAddBike = () => {
+    const n = window.prompt('追加する自転車の名前', '')
+    if (n && n.trim()) addBike(n.trim())
+  }
+
+  const handleDeleteBike = () => {
+    if (!canDelete) return
+    if (window.confirm(`「${bike.name}」を削除しますか？記録もすべて消えます。`)) {
+      removeBike(bike.id)
+    }
+  }
 
   const [name, setName] = useState(bike.name)
   const [backupMsg, setBackupMsg] = useState(null) // { ok, text }
@@ -75,7 +90,7 @@ export default function SettingsScreen() {
       </header>
 
       <main className="settings__main">
-        {/* 自転車名 */}
+        {/* 自転車 */}
         <section className="settings__section">
           <label className="cad-eyebrow settings__label" htmlFor="bike-name">
             自転車の名前
@@ -95,6 +110,23 @@ export default function SettingsScreen() {
               }
             }}
           />
+          <div className="settings__backup">
+            <Button variant="ghost" size="md" fullWidth onClick={handleAddBike}>
+              ＋ 自転車を追加
+            </Button>
+            <Button
+              variant="ghost"
+              size="md"
+              fullWidth
+              onClick={handleDeleteBike}
+              disabled={!canDelete}
+            >
+              🗑 この自転車を削除
+            </Button>
+          </div>
+          {!canDelete && (
+            <p className="settings__hint">自転車は最低1台必要です。</p>
+          )}
         </section>
 
         {/* テーマ */}

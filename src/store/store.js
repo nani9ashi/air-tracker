@@ -222,6 +222,40 @@ export function setBikeName(name) {
   commit(next)
 }
 
+// 新しい自転車を追加し、それをアクティブにする。新IDを返す。
+export function addBike(name) {
+  const next = structuredCloneState(state)
+  const id = `bike-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
+  next.bikes.push({
+    id,
+    name: String(name || '').trim() || DEFAULT_BIKE_NAME,
+    items: [{ type: 'air', lastReset: null, intervalDays: 14, history: [] }],
+  })
+  next.settings.activeBikeId = id
+  commit(next)
+  return id
+}
+
+// 自転車を削除。最後の1台は削除しない。アクティブを消したら先頭へ。
+export function removeBike(id) {
+  if (state.bikes.length <= 1) return
+  const next = structuredCloneState(state)
+  const idx = next.bikes.findIndex((b) => b.id === id)
+  if (idx === -1) return
+  next.bikes.splice(idx, 1)
+  if (next.settings.activeBikeId === id) {
+    next.settings.activeBikeId = next.bikes[0].id
+  }
+  commit(next)
+}
+
+export function setActiveBike(id) {
+  if (!state.bikes.some((b) => b.id === id)) return
+  const next = structuredCloneState(state)
+  next.settings.activeBikeId = id
+  commit(next)
+}
+
 export function setTheme(mode) {
   if (!['auto', 'dark', 'light'].includes(mode)) return
   const next = structuredCloneState(state)
