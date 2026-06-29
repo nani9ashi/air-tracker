@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import HomeScreen from './screens/HomeScreen.jsx'
+import HistoryScreen from './screens/HistoryScreen.jsx'
 import SettingsScreen from './screens/SettingsScreen.jsx'
 import BottomNav from './components/BottomNav.jsx'
 import PreviewScreen from './screens/PreviewScreen.jsx'
@@ -37,13 +38,16 @@ export default function App() {
 
   return (
     <>
-      {tab === 'home' ? <HomeScreen /> : <SettingsScreen />}
+      {tab === 'home' && <HomeScreen />}
+      {tab === 'history' && <HistoryScreen />}
+      {tab === 'settings' && <SettingsScreen />}
 
       <BottomNav
         active={tab}
         onChange={setTab}
         items={[
           { key: 'home', label: 'ホーム', icon: '◎' },
+          { key: 'history', label: '履歴', icon: '☰' },
           { key: 'settings', label: '設定', icon: '⚙' },
         ]}
       />

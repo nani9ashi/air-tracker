@@ -4,6 +4,7 @@ import Button from '../components/Button.jsx'
 import Chip from '../components/Chip.jsx'
 import StatTile from '../components/StatTile.jsx'
 import PumpSheet from './PumpSheet.jsx'
+import BikeSheet from './BikeSheet.jsx'
 import { useStore } from '../store/useStore.js'
 import { getActiveBike, getActiveAirItem, pump, setInterval as setCycle, PRESET_INTERVALS } from '../store/store.js'
 import { computeStatus, formatDateJP } from '../lib/date.js'
@@ -16,6 +17,7 @@ export default function HomeScreen() {
   const isPremium = state.settings.isPremium
 
   const [sheetOpen, setSheetOpen] = useState(false)
+  const [bikeSheetOpen, setBikeSheetOpen] = useState(false)
   const [showPremium, setShowPremium] = useState(false)
 
   // 開いたまま日付が変わってもカウントダウンを更新するため定期的に再評価。
@@ -83,9 +85,16 @@ export default function HomeScreen() {
   return (
     <div className="home">
       <header className="home__header">
-        <h1 className="cad-h2 home__bike">
-          <span aria-hidden="true">🚲</span> {bike.name}
-        </h1>
+        <button
+          type="button"
+          className="home__bike"
+          onClick={() => setBikeSheetOpen(true)}
+          aria-label={`自転車を切り替える（現在: ${bike.name}）`}
+        >
+          <span aria-hidden="true">🚲</span>
+          <span className="cad-h2 home__bike-name">{bike.name}</span>
+          <span aria-hidden="true" className="home__bike-caret">⌄</span>
+        </button>
       </header>
 
       <main className="home__main">
@@ -169,6 +178,8 @@ export default function HomeScreen() {
         onClose={() => setSheetOpen(false)}
         onConfirm={onConfirmPump}
       />
+
+      <BikeSheet open={bikeSheetOpen} onClose={() => setBikeSheetOpen(false)} />
     </div>
   )
 }
