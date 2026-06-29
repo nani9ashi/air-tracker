@@ -77,6 +77,26 @@
   color: var(--text-muted);
 }
 
+.settings__backup {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.settings__backup-msg {
+  font-family: var(--font-jp);
+  font-size: var(--fs-body-sm);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+}
+.settings__backup-msg--ok {
+  color: var(--text-accent);
+  background: var(--accent-soft);
+}
+.settings__backup-msg--err {
+  color: var(--danger);
+  background: rgba(255, 90, 96, 0.14);
+}
+
 .settings__footer {
   margin-top: var(--space-6);
 }

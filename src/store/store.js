@@ -235,6 +235,33 @@ export function setPremium(isPremium) {
   commit(next)
 }
 
+// ---- バックアップ（エクスポート / インポート） ----
+export function exportJSON() {
+  return JSON.stringify(state, null, 2)
+}
+
+function looksLikeData(raw) {
+  if (!raw || typeof raw !== 'object') return false
+  if (Array.isArray(raw.bikes)) return true
+  if ('lastPump' in raw || 'intervalDays' in raw || 'history' in raw) return true
+  return false
+}
+
+// JSON文字列を検証→マイグレーション→置換。{ ok, error } を返す。
+export function importJSON(text) {
+  let raw
+  try {
+    raw = JSON.parse(text)
+  } catch {
+    return { ok: false, error: 'JSONを読み取れませんでした' }
+  }
+  if (!looksLikeData(raw)) {
+    return { ok: false, error: '対応していないデータ形式です' }
+  }
+  commit(migrate(raw))
+  return { ok: true }
+}
+
 // 構造体の安全な複製（古い環境向けに structuredClone が無ければ JSON フォールバック）。
 function structuredCloneState(s) {
   if (typeof structuredClone === 'function') return structuredClone(s)

@@ -1,6 +1,14 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import Button from '../components/Button.jsx'
 import { useStore } from '../store/useStore.js'
-import { getActiveBike, setBikeName, setTheme } from '../store/store.js'
+import {
+  getActiveBike,
+  setBikeName,
+  setTheme,
+  exportJSON,
+  importJSON,
+} from '../store/store.js'
+import { toDateInputValue } from '../lib/date.js'
 import './SettingsScreen.css'
 
 const THEME_OPTIONS = [
@@ -15,11 +23,49 @@ export default function SettingsScreen() {
   const theme = state.settings.theme
 
   const [name, setName] = useState(bike.name)
+  const [backupMsg, setBackupMsg] = useState(null) // { ok, text }
+  const fileRef = useRef(null)
+
+  // 外部要因（インポート・自転車切替）で名前が変わったら入力欄を同期。
+  useEffect(() => {
+    setName(bike.name)
+  }, [bike.id, bike.name])
 
   const commitName = () => {
     const trimmed = name.trim()
     if (trimmed && trimmed !== bike.name) setBikeName(trimmed)
     else setName(bike.name) // 空なら元に戻す
+  }
+
+  const handleExport = () => {
+    const blob = new Blob([exportJSON()], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `air-tracker-backup-${toDateInputValue()}.json`
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
+    setBackupMsg({ ok: true, text: 'バックアップを書き出しました' })
+  }
+
+  const handleImportFile = (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = '' // 同じファイルを再選択できるようリセット
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => {
+      const res = importJSON(String(reader.result))
+      setBackupMsg(
+        res.ok
+          ? { ok: true, text: 'バックアップを復元しました' }
+          : { ok: false, text: res.error || '復元に失敗しました' },
+      )
+    }
+    reader.onerror = () =>
+      setBackupMsg({ ok: false, text: 'ファイルを読み取れませんでした' })
+    reader.readAsText(file)
   }
 
   return (
@@ -87,8 +133,47 @@ export default function SettingsScreen() {
           </p>
         </section>
 
+        {/* バックアップ */}
+        <section className="settings__section">
+          <span className="cad-eyebrow settings__label">バックアップ</span>
+          <div className="settings__backup">
+            <Button variant="ghost" size="md" fullWidth onClick={handleExport}>
+              ⬇ エクスポート
+            </Button>
+            <Button
+              variant="ghost"
+              size="md"
+              fullWidth
+              onClick={() => fileRef.current?.click()}
+            >
+              ⬆ インポート
+            </Button>
+          </div>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="application/json,.json"
+            onChange={handleImportFile}
+            style={{ display: 'none' }}
+            aria-hidden="true"
+          />
+          {backupMsg && (
+            <p
+              className={`settings__backup-msg settings__backup-msg--${
+                backupMsg.ok ? 'ok' : 'err'
+              }`}
+              role="status"
+            >
+              {backupMsg.text}
+            </p>
+          )}
+          <p className="settings__hint">
+            データをJSONファイルで保存・復元できます。インポートは現在のデータを置き換えます。
+          </p>
+        </section>
+
         <footer className="settings__footer">
-          <p className="settings__version">Air Tracker v1</p>
+          <p className="settings__version">Air Tracker v1.1</p>
         </footer>
       </main>
     </div>
