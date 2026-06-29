@@ -1,0 +1,108 @@
+.heatmap {
+  --cell: 13px;
+  --cell-gap: 3px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.heatmap__scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: var(--space-1);
+}
+
+.heatmap__inner {
+  display: flex;
+  gap: var(--cell-gap);
+  width: max-content;
+}
+
+/* 曜日ラベル列 */
+.heatmap__weekdays {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cell-gap);
+  /* 月ラベル行の高さぶん下げる */
+  padding-top: calc(var(--fs-micro) + var(--space-1));
+  flex: none;
+}
+.heatmap__wd {
+  height: var(--cell);
+  line-height: var(--cell);
+  font-family: var(--font-jp);
+  font-size: var(--fs-micro);
+  color: var(--text-muted);
+  padding-right: var(--space-1);
+}
+
+.heatmap__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.heatmap__months {
+  display: flex;
+  gap: var(--cell-gap);
+  height: var(--fs-micro);
+}
+.heatmap__month {
+  width: var(--cell);
+  font-family: var(--font-display);
+  font-size: var(--fs-micro);
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: visible;
+}
+
+.heatmap__grid {
+  display: flex;
+  gap: var(--cell-gap);
+}
+.heatmap__col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cell-gap);
+}
+
+.heatmap__cell {
+  width: var(--cell);
+  height: var(--cell);
+  border-radius: 3px;
+  background: var(--glass-fill-light);
+  border: 1px solid var(--glass-border-soft);
+  flex: none;
+}
+[data-theme='light'] .heatmap__cell {
+  background: var(--navy-700);
+  border-color: transparent;
+}
+
+.heatmap__cell--on {
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: var(--glow-accent-sm);
+}
+
+/* ライトでも --on は accent を維持（off上書きより後＝同特異度で勝つ） */
+[data-theme='light'] .heatmap__cell--on {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.heatmap__cell--future {
+  visibility: hidden;
+}
+
+/* 凡例 */
+.heatmap__legend {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.heatmap__legend-label {
+  font-family: var(--font-jp);
+  font-size: var(--fs-caption);
+  color: var(--text-muted);
+}

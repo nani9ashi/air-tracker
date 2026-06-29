@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import StatTile from '../components/StatTile.jsx'
+import Heatmap from '../components/Heatmap.jsx'
 import { useStore } from '../store/useStore.js'
 import { getActiveAirItem } from '../store/store.js'
 import {
@@ -43,6 +44,10 @@ export default function HistoryScreen() {
           <StatTile label="連続達成" value={streak} unit="回" />
           <StatTile label="記録数" value={total} unit="回" />
         </div>
+
+        <section aria-label="記録ヒートマップ">
+          <Heatmap history={item.history} />
+        </section>
 
         {rows.length === 0 ? (
           <div className="history__empty">
