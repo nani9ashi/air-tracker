@@ -1,7 +1,25 @@
-// P0: 動く土台の確認用プレースホルダ。
-// 受け入れ基準: ダーク背景(#07110F) + 日本語フォント + トークンが効いていること。
-// 実体は P3 で HomeScreen に置き換える。
+import { useEffect, useState } from 'react'
+import PreviewScreen from './screens/PreviewScreen.jsx'
+
+// P1: 開発時のみ #preview でコンポーネントカタログを表示。
+// 本番ルート（HomeScreen）は P3 で実装する。
+function useHash() {
+  const [hash, setHash] = useState(window.location.hash)
+  useEffect(() => {
+    const onHash = () => setHash(window.location.hash)
+    window.addEventListener('hashchange', onHash)
+    return () => window.removeEventListener('hashchange', onHash)
+  }, [])
+  return hash
+}
+
 export default function App() {
+  const hash = useHash()
+
+  if (import.meta.env.DEV && hash === '#preview') {
+    return <PreviewScreen />
+  }
+
   return (
     <div
       style={{
@@ -19,14 +37,17 @@ export default function App() {
         Air Tracker
       </h1>
       <p className="cad-body" style={{ color: 'var(--text-secondary)' }}>
-        空気入れトラッカー — 土台の起動確認 (P0)
+        コア画面は P3 で実装します。
       </p>
-      <span
-        className="cad-eyebrow"
-        style={{ color: 'var(--text-accent)' }}
-      >
-        CADENCE · DARK THEME
-      </span>
+      {import.meta.env.DEV && (
+        <a
+          className="cad-label"
+          style={{ color: 'var(--text-accent)' }}
+          href="#preview"
+        >
+          → コンポーネントプレビュー (#preview)
+        </a>
+      )}
     </div>
   )
 }
