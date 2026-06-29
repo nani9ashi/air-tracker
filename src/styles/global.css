@@ -68,6 +68,13 @@ input {
   outline: none;
 }
 
+/* テーマ切替の瞬間だけトランジションを無効化（ちらつき防止） */
+[data-theme-switching] *,
+[data-theme-switching] *::before,
+[data-theme-switching] *::after {
+  transition: none !important;
+}
+
 /* モーション控えめ設定の尊重 */
 @media (prefers-reduced-motion: reduce) {
   *,

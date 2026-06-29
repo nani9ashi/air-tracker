@@ -187,7 +187,8 @@ export default function SettingsScreen() {
             accept="application/json,.json"
             onChange={handleImportFile}
             style={{ display: 'none' }}
-            aria-hidden="true"
+            aria-label="バックアップファイルを選択"
+            tabIndex={-1}
           />
           {backupMsg && (
             <p
