@@ -46,14 +46,28 @@
 }
 
 .history__item {
+  width: 100%;
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
+  min-height: var(--tap-min);
   border-radius: var(--radius-md);
   background: var(--glass-fill-light);
   border: 1px solid var(--glass-border-soft);
+  text-align: left;
+  transition: background var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out);
+}
+.history__item:hover {
+  background: var(--glass-fill);
+  border-color: var(--glass-border);
+}
+
+.history__chevron {
+  color: var(--text-muted);
+  font-size: var(--fs-h3);
+  line-height: 1;
 }
 
 .history__date {
@@ -64,6 +78,7 @@
 }
 
 .history__gap {
+  margin-left: auto;
   font-family: var(--font-display);
   font-size: var(--fs-body-sm);
   color: var(--text-muted);
