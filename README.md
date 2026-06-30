@@ -97,14 +97,21 @@
 
 ## 6. デザイン（CADENCE）
 
-- **出典**: アップロードされたプロトタイプ。トークンは `design-reference.css` に抽出済み（実装の出発点として使う）。
-- **配色**: ダークなティール基調（`--bg-app: #07110F` / primary `--teal-500: #15C2C2`）＋エネルギー色 ember。**ライトテーマも定義済み**（`data-theme="light"`）。
-- **質感**: グラスモーフィズム（`.cad-glass` / `--blur-glass`）、アクセントにグロー。情報表示部にガラス、主アクションは明確な色＋影で「押せる」と分かるように。
-- **タイポ**: 本文＝**Noto Sans JP**、数字・ラテン＝**Saira / Saira Condensed**。日本語本文は行間広め（`--lh-body: 1.8`）。
-- **レイアウト**: モバイルキャンバス幅 420px、下タブナビ（`--bottom-nav-h: 76px`）。
-- **モーション**: `--ease-spring` など定義済み。
+> v1.2 でプロトタイプ（CADENCE デザインシステム）にデザイン忠実化。製品の通称は **「TIRE AIR · メンテナンス」**。
 
-> プロトタイプHTMLそのものが「見た目の正」。実装時はブラウザで開いて各画面・各コンポーネントの挙動を参照する。
+- **出典**: アップロードされたプロトタイプ。トークンは `design-reference.css`（=`src/styles/tokens.css`）に抽出済み。各コンポーネントはプロト同梱の Cadence デザインシステム（Button/Chip/IconButton/ProgressRing/StatTile/GlassCard/BottomNav/ListRow）に準拠して実装。
+- **配色**: ダークなティール基調（`--bg-app: #07110F` / primary `--teal-500: #15C2C2`）＋エネルギー色 ember。**ライトテーマ併存**（`data-theme="light"`）。
+- **アイコン**: **Lucide**（`lucide-react`）。ボトムナビ＝`gauge`/`history`/`bar-chart-3`/`settings`、操作系＝`calendar-check/minus/days/cog`・`moon`/`sun`/`smartphone`・`download`/`upload`・`trash-2`・`plus-circle`・`more-vertical` など。
+- **質感**: グラスモーフィズム（`--blur-glass`）。`GlassCard` は glass / solid / **spotlight**（`--grad-spotlight` 地）。主アクションは色＋グロー。
+- **主役（HERO A）**: ホームは spotlight ガラスカードに **ProgressRing**（SVG **linearGradient** ストローク・tone 切替・gloss リム）＋白の状態ピル＋メッセージ。「あと○日」が主役。
+- **主CTA**: 「空気入れた！」は **energy（ember）** ボタン＋`plus-circle`。
+- **ボトムナビ**: 浮遊ガラスドック。アクティブタブはアイコンに **角丸グラデスクエア＋グロー**（Cadence シグネチャ）。**4タブ**（ホーム/履歴/統計/設定）。
+- **ヒートマップ**: 日ごとのタイヤ状態で段階配色（teal の鮮度グラデ＋`期限間近`=amber／`超過`=red／記録日=accent）。
+- **ボタン**: 角丸長方形（`--radius-md`）、size sm/md/lg、variant primary/energy/secondary/ghost。**チップ**は選択時グラデ塗り。**IconButton** は角丸スクエア。
+- **タイポ**: 本文＝**Noto Sans JP**、数字＝**Saira / Saira Condensed**（メトリクスは `--font-metric`）。日本語本文は行間広め（`--lh-body: 1.8`）。
+- **モーション**: プロト同梱の `cad-rise` / `cad-sheet` / `cad-fade` のみ（シート・トースト）。`prefers-reduced-motion` 尊重。汎用的な装飾アニメは足さない方針。
+
+> プロトHTMLは bundler 形式（gzip+base64 を実行時解凍）。中身は解凍して参照する。`design-reference.css` とプロトのデザインシステムが「見た目の正」。
 
 ---
 
