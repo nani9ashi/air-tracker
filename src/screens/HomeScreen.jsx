@@ -22,10 +22,10 @@ import './HomeScreen.css'
 
 // 状態 → Lucide アイコン / 短ラベル / リングtone / メッセージ。
 const HERO = {
-  ok: { icon: 'circle-check', label: 'まだ大丈夫', tone: 'contrast' },
+  ok: { icon: 'circle-check', label: 'まだ大丈夫', tone: 'accent' },
   soon: { icon: 'clock', label: 'そろそろ', tone: 'warning' },
   overdue: { icon: 'alert-triangle', label: '空気入れどき', tone: 'energy' },
-  unset: { icon: 'bike', label: '未記録', tone: 'contrast' },
+  unset: { icon: 'bike', label: '未記録', tone: 'accent' },
 }
 
 function heroMessage(status) {
@@ -147,7 +147,7 @@ export default function HomeScreen({ onTab }) {
           <div className="home__hero-inner" role="group" aria-label={heroMessage(status)}>
             <span className="home__hero-eyebrow">NEXT AIR CHECK</span>
             <div className="home__ring-inset">
-              <ProgressRing progress={status.progress} tone={hero.tone} size={196} stroke={16} gloss>
+              <ProgressRing progress={status.fill} tone={hero.tone} size={196} stroke={16} gloss>
                 {ringCenter}
               </ProgressRing>
             </div>
