@@ -12,6 +12,7 @@ import {
   addBike,
   removeBike,
   FREE_LIMITS,
+  APP_VERSION,
 } from '../store/store.js'
 import { toDateInputValue } from '../lib/date.js'
 import './SettingsScreen.css'
@@ -28,6 +29,7 @@ export default function SettingsScreen() {
   const theme = state.settings.theme
   const canDelete = state.bikes.length > 1
   const addLocked = !state.settings.isPremium && state.bikes.length >= FREE_LIMITS.bikes
+  const backupLocked = !state.settings.isPremium
 
   const [name, setName] = useState(bike.name)
   const [toast, setToast] = useState(null)
@@ -71,6 +73,10 @@ export default function SettingsScreen() {
   }
 
   const handleExport = () => {
+    if (backupLocked) {
+      showToast('バックアップはプレミアムで解放されます')
+      return
+    }
     const blob = new Blob([exportJSON()], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -179,28 +185,49 @@ export default function SettingsScreen() {
         <section className="settings__section">
           <span className="settings__label">データのバックアップ</span>
           <div className="settings__row2">
-            <button type="button" className="sheet-opt settings__btn settings__btn--center" onClick={handleExport}>
-              <Icon name="download" size={18} />
-              書き出し
+            <button
+              type="button"
+              className="sheet-opt settings__btn settings__btn--center"
+              onClick={handleExport}
+              aria-label={backupLocked ? '書き出し（プレミアムで解放）' : '書き出し'}
+            >
+              <Icon name={backupLocked ? 'lock' : 'download'} size={18} />
+              {backupLocked ? '書き出し（プレミアム）' : '書き出し'}
             </button>
-            <label className="sheet-opt settings__btn settings__btn--center">
-              <Icon name="upload" size={18} />
-              読み込み
-              <input
-                ref={fileRef}
-                type="file"
-                accept="application/json,.json"
-                onChange={handleImportFile}
-                style={{ display: 'none' }}
-                aria-label="バックアップファイルを選択"
-              />
-            </label>
+            {backupLocked ? (
+              <button
+                type="button"
+                className="sheet-opt settings__btn settings__btn--center"
+                onClick={() => showToast('バックアップはプレミアムで解放されます')}
+                aria-label="読み込み（プレミアムで解放）"
+              >
+                <Icon name="lock" size={18} />
+                読み込み（プレミアム）
+              </button>
+            ) : (
+              <label className="sheet-opt settings__btn settings__btn--center">
+                <Icon name="upload" size={18} />
+                読み込み
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept="application/json,.json"
+                  onChange={handleImportFile}
+                  style={{ display: 'none' }}
+                  aria-label="バックアップファイルを選択"
+                />
+              </label>
+            )}
           </div>
-          <p className="settings__hint">インポートは現在のデータを置き換えます。</p>
+          <p className="settings__hint">
+            {backupLocked
+              ? 'バックアップ（書き出し/読み込み）はプレミアムで解放されます。'
+              : 'インポートは現在のデータを置き換えます。'}
+          </p>
         </section>
 
         <footer className="settings__footer">
-          <p className="settings__version">Air Tracker v1.2</p>
+          <p className="settings__version">Air Tracker v{APP_VERSION}</p>
         </footer>
       </main>
 

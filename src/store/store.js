@@ -11,7 +11,11 @@ const DEFAULT_BIKE_NAME = 'マイバイク'
 const PRESET_INTERVALS = [7, 14, 21, 28]
 
 // 無料プランの上限（プレミアムで解放）。README §7 準拠。
-export const FREE_LIMITS = { bikes: 1, historyShown: 30, heatmapWeeks: 5 }
+// history は「保存上限」（超過分は古いものから破壊的に削除）。
+export const FREE_LIMITS = { bikes: 1, history: 3, heatmapWeeks: 5 }
+
+// アプリ表示バージョン（設定フッター等で使用）。
+export const APP_VERSION = '1.4'
 
 // 履歴エントリ用の安定 ID。
 let __idSeq = 0
@@ -183,8 +187,13 @@ export function subscribe(listener) {
 export function pump(dateISO = new Date().toISOString()) {
   const next = structuredCloneState(state)
   const item = getActiveAirItem(next)
-  item.lastReset = dateISO
   item.history.push({ id: makeId(), date: dateISO })
+  // 無料は保存上限を超えたら古い順に破壊的削除。
+  if (!next.settings.isPremium && item.history.length > FREE_LIMITS.history) {
+    item.history.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
+    item.history = item.history.slice(-FREE_LIMITS.history)
+  }
+  recomputeLastReset(item)
   commit(next)
 }
 
