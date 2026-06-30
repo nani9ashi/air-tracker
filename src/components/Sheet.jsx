@@ -2,12 +2,12 @@ import { useEffect, useRef } from 'react'
 import './Sheet.css'
 
 /**
- * 下から出るボトムシート（モーダル）。
- * open / onClose 制御。背景タップ・Escape で閉じる。簡易フォーカストラップ付き。
+ * 下から出るボトムシート（プロト準拠）。背景タップ・Escape で閉じる。
+ * title（左寄せ 900）/ subtitle を任意で。簡易フォーカストラップ付き。
  */
-export default function Sheet({ open, onClose, title, children }) {
+export default function Sheet({ open, onClose, title, subtitle, ariaLabel, children }) {
   const panelRef = useRef(null)
-  const titleId = 'sheet-title'
+  const titleId = title ? 'sheet-title' : undefined
 
   useEffect(() => {
     if (!open) return
@@ -15,7 +15,6 @@ export default function Sheet({ open, onClose, title, children }) {
       if (e.key === 'Escape') onClose()
     }
     document.addEventListener('keydown', onKey)
-    // 開いたら最初のフォーカス可能要素へ
     const t = setTimeout(() => {
       const el = panelRef.current?.querySelector(
         'button, [href], input, select, [tabindex]:not([tabindex="-1"])',
@@ -38,15 +37,17 @@ export default function Sheet({ open, onClose, title, children }) {
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
+        aria-label={titleId ? undefined : ariaLabel}
         ref={panelRef}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="sheet__handle" aria-hidden="true" />
         {title && (
-          <h2 id={titleId} className="cad-h3 sheet__title">
+          <h2 id={titleId} className="sheet__title">
             {title}
           </h2>
         )}
+        {subtitle && <p className="sheet__subtitle">{subtitle}</p>}
         {children}
       </div>
     </div>

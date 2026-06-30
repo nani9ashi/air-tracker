@@ -24,6 +24,7 @@ import {
   Lock,
   Pencil,
   X,
+  Smartphone,
 } from 'lucide-react'
 
 // プロトタイプの data-lucide 名 → lucide-react コンポーネント。
@@ -53,6 +54,7 @@ const MAP = {
   lock: Lock,
   pencil: Pencil,
   x: X,
+  smartphone: Smartphone,
 }
 
 /**
