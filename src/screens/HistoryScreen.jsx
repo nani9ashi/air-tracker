@@ -89,7 +89,7 @@ export default function HistoryScreen() {
             </div>
           ) : (
             <div className="history__list">
-              {(isPremium ? rows : rows.slice(0, FREE_LIMITS.historyShown)).map((row) => (
+              {(isPremium ? rows : rows.slice(0, FREE_LIMITS.history)).map((row) => (
                 <ListRow
                   key={row.id}
                   role="button"
@@ -125,9 +125,9 @@ export default function HistoryScreen() {
             </div>
           )}
 
-          {!isPremium && rows.length > FREE_LIMITS.historyShown && (
+          {!isPremium && total > 0 && (
             <p className="history__premium" role="status">
-              <Icon name="lock" size={14} /> 無料版は直近{FREE_LIMITS.historyShown}件まで表示（プレミアムで全件）
+              <Icon name="lock" size={14} /> 無料版は直近{FREE_LIMITS.history}件まで保存（プレミアムで全件）
             </p>
           )}
         </GlassCard>

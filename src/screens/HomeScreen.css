@@ -107,13 +107,25 @@
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  background: rgba(255, 255, 255, 0.16);
+  /* 暗い半透明にして状態3色（teal/amber/赤）を可読化 */
+  background: rgba(0, 0, 0, 0.3);
   border-radius: var(--radius-pill);
   padding: 6px 14px;
   font-family: var(--font-jp);
   font-weight: var(--fw-bold);
   font-size: var(--fs-body-sm);
   color: #fff;
+}
+/* 状態色（アイコンは currentColor 継承で同色） */
+.home__hero-pill--ok,
+.home__hero-pill--unset {
+  color: #44e0d6;
+}
+.home__hero-pill--soon {
+  color: #ffb23e;
+}
+.home__hero-pill--overdue {
+  color: #ff5a60;
 }
 .home__hero-msg {
   font-family: var(--font-jp);

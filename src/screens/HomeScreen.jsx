@@ -24,7 +24,7 @@ import './HomeScreen.css'
 const HERO = {
   ok: { icon: 'circle-check', label: 'まだ大丈夫', tone: 'accent' },
   soon: { icon: 'clock', label: 'そろそろ', tone: 'warning' },
-  overdue: { icon: 'alert-triangle', label: '空気入れどき', tone: 'energy' },
+  overdue: { icon: 'alert-triangle', label: '空気入れどき', tone: 'danger' },
   unset: { icon: 'bike', label: '未記録', tone: 'accent' },
 }
 
@@ -151,7 +151,7 @@ export default function HomeScreen({ onTab }) {
                 {ringCenter}
               </ProgressRing>
             </div>
-            <p className="home__hero-pill" role="status">
+            <p className={`home__hero-pill home__hero-pill--${status.state}`} role="status">
               <Icon name={hero.icon} size={16} />
               {hero.label}
             </p>
