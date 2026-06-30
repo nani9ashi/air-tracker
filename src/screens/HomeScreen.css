@@ -78,7 +78,8 @@
 }
 .home__ring-inset {
   border-radius: var(--radius-circle);
-  background: rgba(6, 20, 18, 0.42);
+  /* 両テーマで暗色固定（ライトで薄まり白に溶けるのを防ぐ） */
+  background: rgba(5, 18, 15, 0.55);
   padding: 12px;
   display: grid;
   place-items: center;

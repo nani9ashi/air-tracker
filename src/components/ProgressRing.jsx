@@ -8,7 +8,8 @@ import './ProgressRing.css'
  * children: 中央に置く内容（大きな数字など）。
  */
 const TONES = {
-  accent: ['#34E0D2', '#0DA9A9'],
+  // accent はテーマ別（tokens の --ring-accent-*）。ライトで白に溶けないよう濃いめ。
+  accent: ['var(--ring-accent-0)', 'var(--ring-accent-1)'],
   warning: ['#FFD27A', '#FFB23E'],
   energy: ['#FFA24D', '#F2641A'],
   success: ['#5FE3A8', '#1FB876'],
@@ -46,8 +47,8 @@ export default function ProgressRing({
       >
         <defs>
           <linearGradient id={gid} x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor={g0} />
-            <stop offset="100%" stopColor={g1} />
+            <stop offset="0%" style={{ stopColor: g0 }} />
+            <stop offset="100%" style={{ stopColor: g1 }} />
           </linearGradient>
         </defs>
         {/* トラック */}

@@ -42,6 +42,9 @@
 .stat-tile--accent .stat-tile__value {
   color: var(--teal-400);
 }
+.stat-tile--warning .stat-tile__value {
+  color: var(--warning);
+}
 .stat-tile--energy .stat-tile__value {
   color: var(--ember-400);
 }

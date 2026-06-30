@@ -80,6 +80,9 @@
   --accent-strong: var(--teal-600);
   --accent-soft: rgba(21, 194, 194, 0.15);
   --accent-gradient: var(--grad-primary);
+  /* ProgressRing の accent ストローク（テーマ別。ダークは明るめ） */
+  --ring-accent-0: #44E0D6;
+  --ring-accent-1: #0DA9A9;
   --energy: var(--ember-500);
   --energy-soft: rgba(255, 122, 48, 0.14);
 
@@ -210,6 +213,9 @@
   --accent: #11B6B6;
   --accent-strong: #0DA9A9;
   --accent-soft: rgba(21, 194, 194, 0.12);
+  /* ライトは白に映えるよう濃いめ（teal 500→800） */
+  --ring-accent-0: #15C2C2;
+  --ring-accent-1: #0A6E72;
   --energy: var(--ember-600);
   --energy-soft: rgba(235, 98, 25, 0.12);
 

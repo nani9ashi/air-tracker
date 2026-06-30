@@ -5,7 +5,7 @@ import Sheet from '../components/Sheet.jsx'
 import Button from '../components/Button.jsx'
 import Icon from '../components/Icon.jsx'
 import { useStore } from '../store/useStore.js'
-import { getActiveAirItem, editHistory, removeHistory } from '../store/store.js'
+import { getActiveAirItem, editHistory, removeHistory, FREE_LIMITS } from '../store/store.js'
 import { averageIntervalDays, totalCount, sortedHistory } from '../lib/stats.js'
 import { formatDateJP, daysBetween, toDateInputValue, dateInputToISO } from '../lib/date.js'
 import './HistoryScreen.css'
@@ -17,6 +17,7 @@ export default function HistoryScreen() {
   const item = getActiveAirItem(state)
   const total = totalCount(item.history)
   const avg = averageIntervalDays(item.history)
+  const isPremium = state.settings.isPremium
 
   const [editing, setEditing] = useState(null)
   const [editValue, setEditValue] = useState('')
@@ -88,7 +89,7 @@ export default function HistoryScreen() {
             </div>
           ) : (
             <div className="history__list">
-              {rows.map((row) => (
+              {(isPremium ? rows : rows.slice(0, FREE_LIMITS.historyShown)).map((row) => (
                 <ListRow
                   key={row.id}
                   role="button"
@@ -122,6 +123,12 @@ export default function HistoryScreen() {
                 />
               ))}
             </div>
+          )}
+
+          {!isPremium && rows.length > FREE_LIMITS.historyShown && (
+            <p className="history__premium" role="status">
+              <Icon name="lock" size={14} /> 無料版は直近{FREE_LIMITS.historyShown}件まで表示（プレミアムで全件）
+            </p>
           )}
         </GlassCard>
       </main>

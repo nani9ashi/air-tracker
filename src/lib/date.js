@@ -45,6 +45,7 @@ export function computeStatus(lastReset, intervalDays, now = new Date()) {
       remaining: null,
       overdueBy: 0,
       progress: 1,
+      fill: 0,
       tone: 'accent',
       message: 'まずは空気を入れて記録しよう',
       icon: '🚲',
@@ -54,6 +55,8 @@ export function computeStatus(lastReset, intervalDays, now = new Date()) {
   const elapsed = daysBetween(lastReset, now)
   const remaining = interval - elapsed
   const progress = clamp(remaining / interval, 0, 1)
+  // fill: 経過の進捗（リングは経過で伸びる）。新しいほど小さく、期限/超過で満。
+  const fill = clamp(elapsed / interval, 0, 1)
 
   if (remaining <= 0) {
     return {
@@ -62,6 +65,7 @@ export function computeStatus(lastReset, intervalDays, now = new Date()) {
       remaining,
       overdueBy: Math.abs(remaining),
       progress: 0,
+      fill: 1,
       tone: 'energy',
       message: '空気入れどき！',
       icon: '⚠',
@@ -76,6 +80,7 @@ export function computeStatus(lastReset, intervalDays, now = new Date()) {
       remaining,
       overdueBy: 0,
       progress,
+      fill,
       tone: 'warning',
       message: 'そろそろ',
       icon: '⏳',
@@ -88,6 +93,7 @@ export function computeStatus(lastReset, intervalDays, now = new Date()) {
     remaining,
     overdueBy: 0,
     progress,
+    fill,
     tone: 'accent',
     message: 'まだ大丈夫',
     icon: '✓',
