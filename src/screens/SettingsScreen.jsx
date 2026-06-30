@@ -11,6 +11,7 @@ import {
   importJSON,
   addBike,
   removeBike,
+  FREE_LIMITS,
 } from '../store/store.js'
 import { toDateInputValue } from '../lib/date.js'
 import './SettingsScreen.css'
@@ -26,6 +27,7 @@ export default function SettingsScreen() {
   const bike = getActiveBike(state)
   const theme = state.settings.theme
   const canDelete = state.bikes.length > 1
+  const addLocked = !state.settings.isPremium && state.bikes.length >= FREE_LIMITS.bikes
 
   const [name, setName] = useState(bike.name)
   const [toast, setToast] = useState(null)
@@ -50,6 +52,10 @@ export default function SettingsScreen() {
   }
 
   const handleAddBike = () => {
+    if (addLocked) {
+      showToast('複数の自転車はプレミアムで解放されます')
+      return
+    }
     const n = window.prompt('追加する自転車の名前', '')
     if (n && n.trim()) {
       addBike(n.trim())
@@ -117,9 +123,18 @@ export default function SettingsScreen() {
               }}
             />
             <div className="settings__row2">
-              <button type="button" className="sheet-opt settings__btn" onClick={handleAddBike}>
-                <span className="sheet-opt__icon"><Icon name="plus-circle" size={20} /></span>
-                <span className="sheet-opt__label">自転車を追加</span>
+              <button
+                type="button"
+                className="sheet-opt settings__btn"
+                onClick={handleAddBike}
+                aria-label={addLocked ? '自転車を追加（プレミアムで解放）' : '自転車を追加'}
+              >
+                <span className="sheet-opt__icon">
+                  <Icon name={addLocked ? 'lock' : 'plus-circle'} size={20} />
+                </span>
+                <span className="sheet-opt__label">
+                  {addLocked ? '追加（プレミアム）' : '自転車を追加'}
+                </span>
               </button>
               <button
                 type="button"

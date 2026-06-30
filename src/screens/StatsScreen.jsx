@@ -3,8 +3,9 @@ import StatTile from '../components/StatTile.jsx'
 import Heatmap from '../components/Heatmap.jsx'
 import Icon from '../components/Icon.jsx'
 import { useStore } from '../store/useStore.js'
-import { getActiveAirItem } from '../store/store.js'
-import { averageIntervalDays, currentStreak, totalCount, cycleTrend } from '../lib/stats.js'
+import { getActiveAirItem, FREE_LIMITS } from '../store/store.js'
+import { averageIntervalDays, currentStreak, totalCount, cycleTrend, sortedHistory } from '../lib/stats.js'
+import { daysBetween } from '../lib/date.js'
 import './StatsScreen.css'
 
 export default function StatsScreen() {
@@ -14,6 +15,16 @@ export default function StatsScreen() {
   const streak = currentStreak(item.history, item.intervalDays)
   const total = totalCount(item.history)
   const trend = cycleTrend(item.history, item.intervalDays)
+  const isPremium = state.settings.isPremium
+
+  // 無料は直近1ヶ月（約5週）。有料は最古の記録〜現在をカバー（18〜53週）。
+  const heatmapWeeks = (() => {
+    if (!isPremium) return FREE_LIMITS.heatmapWeeks
+    const s = sortedHistory(item.history)
+    if (!s.length) return 18
+    const days = daysBetween(s[0].date, new Date())
+    return Math.max(18, Math.min(53, Math.ceil(days / 7) + 1))
+  })()
 
   return (
     <div className="stats">
@@ -33,7 +44,9 @@ export default function StatsScreen() {
         <GlassCard variant="glass">
           <div className="stats__card-head">
             <span className="stats__card-title">記録ヒートマップ</span>
-            <span className="stats__card-sub">記録{total}件 · 直近4ヶ月</span>
+            <span className="stats__card-sub">
+              記録{total}件 · {isPremium ? '全期間' : '直近1ヶ月'}
+            </span>
           </div>
           {total === 0 ? (
             <div className="stats__empty">
@@ -41,7 +54,14 @@ export default function StatsScreen() {
               <p className="cad-body" style={{ color: 'var(--text-secondary)' }}>まだ記録がありません。</p>
             </div>
           ) : (
-            <Heatmap history={item.history} intervalDays={item.intervalDays} />
+            <>
+              <Heatmap history={item.history} intervalDays={item.intervalDays} weeks={heatmapWeeks} />
+              {!isPremium && (
+                <p className="stats__premium" role="status">
+                  <Icon name="lock" size={14} /> 無料版は直近1ヶ月（プレミアムで全期間）
+                </p>
+              )}
+            </>
           )}
         </GlassCard>
       </main>

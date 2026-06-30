@@ -10,6 +10,9 @@ const VERSION = 2
 const DEFAULT_BIKE_NAME = 'マイバイク'
 const PRESET_INTERVALS = [7, 14, 21, 28]
 
+// 無料プランの上限（プレミアムで解放）。README §7 準拠。
+export const FREE_LIMITS = { bikes: 1, historyShown: 30, heatmapWeeks: 5 }
+
 // 履歴エントリ用の安定 ID。
 let __idSeq = 0
 function makeId() {
