@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import HomeScreen from './screens/HomeScreen.jsx'
 import HistoryScreen from './screens/HistoryScreen.jsx'
+import StatsScreen from './screens/StatsScreen.jsx'
 import SettingsScreen from './screens/SettingsScreen.jsx'
 import BottomNav from './components/BottomNav.jsx'
 import Icon from './components/Icon.jsx'
@@ -41,6 +42,7 @@ export default function App() {
     <>
       {tab === 'home' && <HomeScreen onTab={setTab} />}
       {tab === 'history' && <HistoryScreen />}
+      {tab === 'stats' && <StatsScreen />}
       {tab === 'settings' && <SettingsScreen />}
 
       <BottomNav
@@ -49,6 +51,7 @@ export default function App() {
         items={[
           { key: 'home', label: 'ホーム', icon: <Icon name="gauge" size={22} /> },
           { key: 'history', label: '履歴', icon: <Icon name="history" size={22} /> },
+          { key: 'stats', label: '統計', icon: <Icon name="bar-chart-3" size={22} /> },
           { key: 'settings', label: '設定', icon: <Icon name="settings" size={22} /> },
         ]}
       />
