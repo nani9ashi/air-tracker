@@ -11,6 +11,7 @@ const TONES = {
   // accent はテーマ別（tokens の --ring-accent-*）。ライトで白に溶けないよう濃いめ。
   accent: ['var(--ring-accent-0)', 'var(--ring-accent-1)'],
   warning: ['#FFD27A', '#FFB23E'],
+  danger: ['#FF8A8E', '#FF5A60'],
   energy: ['#FFA24D', '#F2641A'],
   success: ['#5FE3A8', '#1FB876'],
   contrast: ['#FFFFFF', '#CFFBF4'],

@@ -40,10 +40,13 @@
   font-variant-numeric: tabular-nums;
 }
 .stat-tile--accent .stat-tile__value {
-  color: var(--teal-400);
+  color: var(--text-accent);
 }
 .stat-tile--warning .stat-tile__value {
   color: var(--warning);
+}
+.stat-tile--danger .stat-tile__value {
+  color: var(--danger);
 }
 .stat-tile--energy .stat-tile__value {
   color: var(--ember-400);
