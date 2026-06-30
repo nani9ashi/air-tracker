@@ -174,8 +174,8 @@ export default function HomeScreen({ onTab }) {
         {/* CYCLE */}
         <section className="home__cycles" aria-labelledby="cycle-heading">
           <div className="home__cycles-head">
-            <span id="cycle-heading" className="home__cycles-title">推奨サイクル</span>
-            <span className="home__cycles-hint">空気を入れる間隔</span>
+            <span id="cycle-heading" className="home__cycles-title">空気を入れる間隔</span>
+            <span className="home__cycles-hint">現在 {item.intervalDays}日</span>
           </div>
           <div className="home__chips">
             {PRESET_INTERVALS.map((d) => (

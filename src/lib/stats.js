@@ -43,3 +43,15 @@ export function currentStreak(history, intervalDays) {
 export function totalCount(history) {
   return Array.isArray(history) ? history.length : 0
 }
+
+// 平均間隔を設定サイクルと比較した「傾向」（ヒートマップと同じサイクル基準）。
+// 記録2件未満は平均が出せないので '—'。
+export function cycleTrend(history, intervalDays) {
+  const avg = averageIntervalDays(history)
+  const interval = Number(intervalDays) || 14
+  if (avg == null) return { label: '—', tone: 'default' }
+  const r = avg / interval
+  if (r <= 1.0) return { label: '順調', tone: 'accent' }
+  if (r <= 1.25) return { label: 'やや遅れ', tone: 'warning' }
+  return { label: '遅れ', tone: 'energy' }
+}

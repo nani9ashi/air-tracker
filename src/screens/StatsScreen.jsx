@@ -4,19 +4,8 @@ import Heatmap from '../components/Heatmap.jsx'
 import Icon from '../components/Icon.jsx'
 import { useStore } from '../store/useStore.js'
 import { getActiveAirItem } from '../store/store.js'
-import { averageIntervalDays, currentStreak, totalCount, sortedHistory } from '../lib/stats.js'
-import { daysBetween } from '../lib/date.js'
+import { averageIntervalDays, currentStreak, totalCount, cycleTrend } from '../lib/stats.js'
 import './StatsScreen.css'
-
-function computeTrend(history) {
-  const s = sortedHistory(history)
-  const avg = averageIntervalDays(history)
-  if (s.length < 2 || avg == null) return { label: '—', tone: 'default' }
-  const lastGap = daysBetween(s[s.length - 2].date, new Date(s[s.length - 1].date))
-  if (lastGap <= avg * 0.9) return { label: '早め', tone: 'accent' }
-  if (lastGap >= avg * 1.1) return { label: '遅れ', tone: 'energy' }
-  return { label: '安定', tone: 'accent' }
-}
 
 export default function StatsScreen() {
   const state = useStore()
@@ -24,7 +13,7 @@ export default function StatsScreen() {
   const avg = averageIntervalDays(item.history)
   const streak = currentStreak(item.history, item.intervalDays)
   const total = totalCount(item.history)
-  const trend = computeTrend(item.history)
+  const trend = cycleTrend(item.history, item.intervalDays)
 
   return (
     <div className="stats">
