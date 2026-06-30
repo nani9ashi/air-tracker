@@ -1,21 +1,33 @@
 import './GlassCard.css'
 
 /**
- * すりガラス調の情報パネル（.cad-glass 準拠）。
- * as: ラップ要素のタグ（既定 div、section 等に変更可）。
+ * Cadence サーフェス。variant: 'glass' | 'solid' | 'spotlight'(teal grad)。
+ * radius / padding は CSS変数で上書き可。glow でアクセントグロー。
  */
 export default function GlassCard({
   children,
+  variant = 'glass',
+  radius,
+  padding,
+  glow = false,
   as: Tag = 'div',
-  strong = false,
   className = '',
+  style = {},
   ...rest
 }) {
-  const cls = ['glass-card', strong ? 'glass-card--strong' : '', className]
+  const cls = [
+    'glass-card',
+    `glass-card--${variant}`,
+    glow ? 'glass-card--glow' : '',
+    className,
+  ]
     .filter(Boolean)
     .join(' ')
+  const s = { ...style }
+  if (radius) s['--gc-radius'] = radius
+  if (padding) s['--gc-pad'] = padding
   return (
-    <Tag className={cls} {...rest}>
+    <Tag className={cls} style={s} {...rest}>
       {children}
     </Tag>
   )
