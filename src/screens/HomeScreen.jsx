@@ -2,25 +2,57 @@ import { useEffect, useMemo, useState } from 'react'
 import ProgressRing from '../components/ProgressRing.jsx'
 import Button from '../components/Button.jsx'
 import Chip from '../components/Chip.jsx'
-import StatTile from '../components/StatTile.jsx'
+import GlassCard from '../components/GlassCard.jsx'
+import IconButton from '../components/IconButton.jsx'
+import Icon from '../components/Icon.jsx'
 import PumpSheet from './PumpSheet.jsx'
 import BikeSheet from './BikeSheet.jsx'
 import { useStore } from '../store/useStore.js'
-import { getActiveBike, getActiveAirItem, pump, setInterval as setCycle, PRESET_INTERVALS } from '../store/store.js'
-import { computeStatus, formatDateJP } from '../lib/date.js'
+import {
+  getActiveBike,
+  getActiveAirItem,
+  pump,
+  setInterval as setCycle,
+  setTheme,
+  PRESET_INTERVALS,
+} from '../store/store.js'
+import { computeStatus } from '../lib/date.js'
+import { resolveTheme } from '../lib/theme.js'
 import './HomeScreen.css'
 
-export default function HomeScreen() {
+// 状態 → Lucide アイコン / 短ラベル / リングtone / メッセージ。
+const HERO = {
+  ok: { icon: 'circle-check', label: 'まだ大丈夫', tone: 'contrast' },
+  soon: { icon: 'clock', label: 'そろそろ', tone: 'warning' },
+  overdue: { icon: 'alert-triangle', label: '空気入れどき', tone: 'energy' },
+  unset: { icon: 'bike', label: '未記録', tone: 'contrast' },
+}
+
+function heroMessage(status) {
+  switch (status.state) {
+    case 'ok':
+      return `次の空気入れまであと${status.remaining}日。良いペースです。`
+    case 'soon':
+      return `残り${status.remaining}日。そろそろ空気を入れましょう。`
+    case 'overdue':
+      return `${status.overdueBy}日超過。タイヤの空気を入れましょう。`
+    default:
+      return 'まずは空気を入れて記録しましょう。'
+  }
+}
+
+export default function HomeScreen({ onTab }) {
   const state = useStore()
   const bike = getActiveBike(state)
   const item = getActiveAirItem(state)
   const isPremium = state.settings.isPremium
+  const isLight = resolveTheme(state.settings.theme) === 'light'
 
   const [sheetOpen, setSheetOpen] = useState(false)
   const [bikeSheetOpen, setBikeSheetOpen] = useState(false)
   const [showPremium, setShowPremium] = useState(false)
 
-  // 開いたまま日付が変わってもカウントダウンを更新するため定期的に再評価。
+  // 開いたまま日付が変わってもカウントダウンを更新。
   const [, tick] = useState(0)
   useEffect(() => {
     const id = window.setInterval(() => tick((n) => n + 1), 60000)
@@ -31,19 +63,17 @@ export default function HomeScreen() {
     () => computeStatus(item.lastReset, item.intervalDays, new Date()),
     [item.lastReset, item.intervalDays],
   )
-
+  const hero = HERO[status.state] || HERO.unset
   const isCustom = !PRESET_INTERVALS.includes(item.intervalDays)
 
   const onConfirmPump = (iso) => {
     pump(iso)
     setSheetOpen(false)
   }
-
   const onSelectPreset = (d) => {
     setShowPremium(false)
     setCycle(d)
   }
-
   const onCustomClick = () => {
     if (!isPremium) {
       setShowPremium((v) => !v)
@@ -54,8 +84,8 @@ export default function HomeScreen() {
     if (Number.isFinite(v) && v >= 1) setCycle(Math.round(v))
   }
 
-  // リング中央の表示（色だけに頼らず数字＋ラベルで状態を示す）。
-  const center = (() => {
+  // リング中央（白文字・色だけに頼らず数字＋ラベル）。
+  const ringCenter = (() => {
     if (status.state === 'unset') {
       return (
         <>
@@ -64,19 +94,13 @@ export default function HomeScreen() {
         </>
       )
     }
-    if (status.state === 'overdue') {
-      return (
-        <>
-          <span className="home__ring-eyebrow">超過</span>
-          <span className="cad-display home__ring-num">{status.overdueBy}</span>
-          <span className="home__ring-unit">日</span>
-        </>
-      )
-    }
+    const isOver = status.state === 'overdue'
     return (
       <>
-        <span className="home__ring-eyebrow">あと</span>
-        <span className="cad-display home__ring-num">{status.remaining}</span>
+        <span className="home__ring-eyebrow">{isOver ? '超過' : 'あと'}</span>
+        <span className="cad-display home__ring-num">
+          {isOver ? status.overdueBy : status.remaining}
+        </span>
         <span className="home__ring-unit">日</span>
       </>
     )
@@ -87,68 +111,75 @@ export default function HomeScreen() {
       <header className="home__header">
         <button
           type="button"
-          className="home__bike"
+          className="home__id"
           onClick={() => setBikeSheetOpen(true)}
-          aria-label={`自転車を切り替える（現在: ${bike.name}）`}
+          aria-label={`自転車を切り替え（現在: ${bike.name}）`}
         >
-          <span aria-hidden="true">🚲</span>
-          <span className="cad-h2 home__bike-name">{bike.name}</span>
-          <span aria-hidden="true" className="home__bike-caret">⌄</span>
+          <span className="home__eyebrow">TIRE AIR · メンテナンス</span>
+          <span className="home__bikename">
+            {bike.name}
+            <Icon name="chevron-right" size={18} className="home__bike-caret" />
+          </span>
         </button>
+        <div className="home__chrome">
+          <IconButton
+            label="テーマを切り替え"
+            variant="glass"
+            size="sm"
+            onClick={() => setTheme(isLight ? 'dark' : 'light')}
+          >
+            <Icon name={isLight ? 'sun' : 'moon'} size={18} />
+          </IconButton>
+          <IconButton
+            label="設定を開く"
+            variant="glass"
+            size="sm"
+            onClick={() => onTab && onTab('settings')}
+          >
+            <Icon name="settings" size={18} />
+          </IconButton>
+        </div>
       </header>
 
       <main className="home__main">
-        <ProgressRing
-          progress={status.progress}
-          tone={status.tone}
-          size={260}
-          stroke={18}
+        {/* HERO A — spotlight */}
+        <GlassCard variant="spotlight" radius="28px" className="home__hero">
+          <div className="home__hero-inner" role="group" aria-label={heroMessage(status)}>
+            <span className="home__hero-eyebrow">NEXT AIR CHECK</span>
+            <div className="home__ring-inset">
+              <ProgressRing progress={status.progress} tone={hero.tone} size={196} stroke={16} gloss>
+                {ringCenter}
+              </ProgressRing>
+            </div>
+            <p className="home__hero-pill" role="status">
+              <Icon name={hero.icon} size={16} />
+              {hero.label}
+            </p>
+            <p className="home__hero-msg">{heroMessage(status)}</p>
+          </div>
+        </GlassCard>
+
+        {/* RESET CTA */}
+        <Button
+          variant="energy"
+          size="lg"
+          block
+          className="home__cta"
+          iconLeft={<Icon name="plus-circle" size={20} />}
+          onClick={() => setSheetOpen(true)}
         >
-          {center}
-        </ProgressRing>
-
-        {/* 状態メッセージ: 色＋アイコン＋テキストで判別可能に */}
-        <p
-          className={`home__status home__status--${status.tone}`}
-          role="status"
-          aria-live="polite"
-        >
-          <span aria-hidden="true" className="home__status-icon">
-            {status.icon}
-          </span>
-          {status.message}
-        </p>
-
-        <div className="home__stats">
-          <StatTile label="サイクル" value={item.intervalDays} unit="日" />
-          <StatTile
-            label="経過"
-            value={status.elapsed == null ? '—' : status.elapsed}
-            unit={status.elapsed == null ? '' : '日'}
-          />
-        </div>
-
-        {item.lastReset && (
-          <p className="home__last">
-            前回: {formatDateJP(item.lastReset)}
-          </p>
-        )}
-
-        <Button variant="primary" size="lg" fullWidth onClick={() => setSheetOpen(true)}>
           空気入れた！
         </Button>
 
+        {/* CYCLE */}
         <section className="home__cycles" aria-labelledby="cycle-heading">
-          <h2 id="cycle-heading" className="cad-eyebrow home__cycles-title">
-            推奨サイクル
-          </h2>
+          <div className="home__cycles-head">
+            <span id="cycle-heading" className="home__cycles-title">推奨サイクル</span>
+            <span className="home__cycles-hint">空気を入れる間隔</span>
+          </div>
           <div className="home__chips">
             {PRESET_INTERVALS.map((d) => (
-              <Chip
-                key={d}
-                selected={!isCustom && item.intervalDays === d}
-                onClick={() => onSelectPreset(d)}
-              >
+              <Chip key={d} selected={!isCustom && item.intervalDays === d} onClick={() => onSelectPreset(d)}>
                 {d}日
               </Chip>
             ))}
@@ -156,29 +187,20 @@ export default function HomeScreen() {
               selected={isCustom}
               locked={!isPremium}
               onClick={onCustomClick}
-              aria-label={
-                isPremium
-                  ? 'カスタムサイクル'
-                  : 'カスタムサイクル（プレミアムで解放）'
-              }
+              aria-label={isPremium ? 'カスタムサイクル' : 'カスタムサイクル（プレミアムで解放）'}
             >
               {isCustom ? `${item.intervalDays}日` : 'カスタム'}
             </Chip>
           </div>
           {showPremium && (
             <p className="home__premium" role="status">
-              🔒 カスタムサイクルはプレミアムで解放されます
+              <Icon name="lock" size={14} /> カスタムサイクルはプレミアムで解放されます
             </p>
           )}
         </section>
       </main>
 
-      <PumpSheet
-        open={sheetOpen}
-        onClose={() => setSheetOpen(false)}
-        onConfirm={onConfirmPump}
-      />
-
+      <PumpSheet open={sheetOpen} onClose={() => setSheetOpen(false)} onConfirm={onConfirmPump} />
       <BikeSheet open={bikeSheetOpen} onClose={() => setBikeSheetOpen(false)} />
     </div>
   )

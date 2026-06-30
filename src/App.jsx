@@ -3,6 +3,7 @@ import HomeScreen from './screens/HomeScreen.jsx'
 import HistoryScreen from './screens/HistoryScreen.jsx'
 import SettingsScreen from './screens/SettingsScreen.jsx'
 import BottomNav from './components/BottomNav.jsx'
+import Icon from './components/Icon.jsx'
 import PreviewScreen from './screens/PreviewScreen.jsx'
 import { useStore } from './store/useStore.js'
 import { applyTheme, watchSystemTheme } from './lib/theme.js'
@@ -38,7 +39,7 @@ export default function App() {
 
   return (
     <>
-      {tab === 'home' && <HomeScreen />}
+      {tab === 'home' && <HomeScreen onTab={setTab} />}
       {tab === 'history' && <HistoryScreen />}
       {tab === 'settings' && <SettingsScreen />}
 
@@ -46,9 +47,9 @@ export default function App() {
         active={tab}
         onChange={setTab}
         items={[
-          { key: 'home', label: 'ホーム', icon: '◎' },
-          { key: 'history', label: '履歴', icon: '☰' },
-          { key: 'settings', label: '設定', icon: '⚙' },
+          { key: 'home', label: 'ホーム', icon: <Icon name="gauge" size={22} /> },
+          { key: 'history', label: '履歴', icon: <Icon name="history" size={22} /> },
+          { key: 'settings', label: '設定', icon: <Icon name="settings" size={22} /> },
         ]}
       />
     </>
