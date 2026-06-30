@@ -11,24 +11,22 @@
   position: absolute;
   inset: 0;
   background: rgba(0, 0, 0, 0.5);
-  -webkit-backdrop-filter: blur(2px);
-  backdrop-filter: blur(2px);
-  animation: sheet-fade var(--dur-base) var(--ease-out);
+  animation: cad-fade 0.2s var(--ease-out) both;
 }
 
 .sheet__panel {
   position: relative;
   width: 100%;
   max-width: var(--screen-max);
-  background: var(--bg-elevated);
-  border-top-left-radius: var(--radius-xl);
-  border-top-right-radius: var(--radius-xl);
-  border: 1px solid var(--glass-border-soft);
-  border-bottom: none;
+  max-height: 88%;
+  overflow-y: auto;
+  background: var(--bg-surface);
+  border-top-left-radius: 28px;
+  border-top-right-radius: 28px;
+  border-top: 1px solid var(--glass-border);
   box-shadow: var(--shadow-lg);
-  padding: var(--space-4) var(--gutter-screen)
-    calc(var(--space-7) + env(safe-area-inset-bottom, 0));
-  animation: sheet-rise var(--dur-slow) var(--ease-spring);
+  padding: 18px var(--gutter-screen) calc(var(--space-6) + env(safe-area-inset-bottom, 0));
+  animation: cad-sheet 0.28s var(--ease-out) both;
 }
 
 .sheet__handle {
@@ -36,22 +34,98 @@
   height: 4px;
   border-radius: var(--radius-pill);
   background: var(--border-strong);
-  margin: 0 auto var(--space-4);
+  margin: 0 auto 16px;
 }
 
 .sheet__title {
-  margin-bottom: var(--space-5);
-  text-align: center;
+  font-family: var(--font-jp);
+  font-weight: var(--fw-black);
+  font-size: 20px;
+  color: var(--text-primary);
+  margin-bottom: 4px;
 }
 
-@keyframes sheet-fade {
-  from {
-    opacity: 0;
-  }
+.sheet__subtitle {
+  font-family: var(--font-jp);
+  font-size: var(--fs-caption);
+  color: var(--text-muted);
+  margin-bottom: 18px;
 }
 
-@keyframes sheet-rise {
+/* 共有：シート内のオプション行（今日/昨日/カレンダー、編集/削除 等） */
+.sheet-opt {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 15px 16px;
+  border-radius: var(--radius-md);
+  background: var(--glass-fill-light);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  font-family: var(--font-jp);
+  font-weight: var(--fw-bold);
+  font-size: var(--fs-body);
+  text-align: left;
+  cursor: pointer;
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+.sheet-opt:active {
+  transform: scale(0.99);
+}
+.sheet-opt__label {
+  flex: 1;
+}
+.sheet-opt__meta {
+  font-family: var(--font-display);
+  font-size: var(--fs-body-sm);
+  color: var(--text-muted);
+}
+.sheet-opt--accent {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+.sheet-opt--accent .sheet-opt__icon {
+  color: var(--text-accent);
+}
+.sheet-opt--danger {
+  background: rgba(255, 90, 96, 0.12);
+  border-color: rgba(255, 90, 96, 0.4);
+  color: var(--danger);
+}
+.sheet-opt__icon {
+  color: var(--text-secondary);
+  flex-shrink: 0;
+  display: inline-flex;
+}
+
+.sheet-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sheet-cancel {
+  width: 100%;
+  margin-top: 14px;
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-family: var(--font-jp);
+  font-weight: var(--fw-bold);
+  font-size: var(--fs-body-sm);
+  cursor: pointer;
+}
+
+@keyframes cad-sheet {
   from {
     transform: translateY(100%);
+  }
+}
+@keyframes cad-fade {
+  from {
+    opacity: 0;
   }
 }

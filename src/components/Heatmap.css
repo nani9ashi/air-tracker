@@ -12,34 +12,11 @@
   padding-bottom: var(--space-1);
 }
 
-.heatmap__inner {
-  display: flex;
-  gap: var(--cell-gap);
-  width: max-content;
-}
-
-/* 曜日ラベル列 */
-.heatmap__weekdays {
-  display: flex;
-  flex-direction: column;
-  gap: var(--cell-gap);
-  /* 月ラベル行の高さぶん下げる */
-  padding-top: calc(var(--fs-micro) + var(--space-1));
-  flex: none;
-}
-.heatmap__wd {
-  height: var(--cell);
-  line-height: var(--cell);
-  font-family: var(--font-jp);
-  font-size: var(--fs-micro);
-  color: var(--text-muted);
-  padding-right: var(--space-1);
-}
-
 .heatmap__body {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
+  width: max-content;
 }
 
 .heatmap__months {
@@ -53,7 +30,6 @@
   font-size: var(--fs-micro);
   color: var(--text-muted);
   white-space: nowrap;
-  overflow: visible;
 }
 
 .heatmap__grid {
@@ -69,28 +45,26 @@
 .heatmap__cell {
   width: var(--cell);
   height: var(--cell);
-  border-radius: 3px;
-  background: var(--glass-fill-light);
-  border: 1px solid var(--glass-border-soft);
+  border-radius: 2px;
   flex: none;
-}
-[data-theme='light'] .heatmap__cell {
   background: var(--navy-700);
-  border-color: transparent;
 }
-
-.heatmap__cell--on {
+.heatmap__cell--mid {
+  background: rgba(21, 194, 194, 0.3);
+}
+.heatmap__cell--fresh {
+  background: rgba(21, 194, 194, 0.55);
+}
+.heatmap__cell--pump {
   background: var(--accent);
-  border-color: var(--accent);
   box-shadow: var(--glow-accent-sm);
 }
-
-/* ライトでも --on は accent を維持（off上書きより後＝同特異度で勝つ） */
-[data-theme='light'] .heatmap__cell--on {
-  background: var(--accent);
-  border-color: var(--accent);
+.heatmap__cell--soon {
+  background: rgba(255, 178, 62, 0.55);
 }
-
+.heatmap__cell--over {
+  background: rgba(255, 90, 96, 0.5);
+}
 .heatmap__cell--future {
   visibility: hidden;
 }
@@ -99,10 +73,14 @@
 .heatmap__legend {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: 5px;
+  flex-wrap: wrap;
 }
 .heatmap__legend-label {
   font-family: var(--font-jp);
-  font-size: var(--fs-caption);
+  font-size: 10px;
   color: var(--text-muted);
+}
+.heatmap__legend-sep {
+  width: var(--space-3);
 }

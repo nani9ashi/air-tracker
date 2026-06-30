@@ -6,6 +6,11 @@
   width: 100%;
   max-width: var(--screen-max);
   height: var(--bottom-nav-h);
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  gap: var(--space-1);
+  padding: 0 var(--space-3);
   padding-bottom: env(safe-area-inset-bottom, 0);
   background: var(--glass-fill-strong);
   -webkit-backdrop-filter: blur(var(--blur-strong));
@@ -14,40 +19,48 @@
   z-index: 50;
 }
 
-.bottom-nav__list {
-  list-style: none;
-  display: flex;
-  height: var(--bottom-nav-h);
-}
-
-.bottom-nav__item {
-  flex: 1;
-}
-
 .bottom-nav__btn {
-  width: 100%;
+  flex: 1;
   height: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: var(--space-1);
-  color: var(--text-muted);
-  transition: color var(--dur-fast) var(--ease-out);
+  background: transparent;
+  border: none;
+  cursor: pointer;
 }
 
-.bottom-nav__btn--active {
-  color: var(--text-accent);
-}
-
+/* アクティブ：アイコンに角丸グラデスクエア＋グロー（Cadence シグネチャ） */
 .bottom-nav__icon {
-  font-size: var(--icon-lg);
-  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 38px;
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  background: transparent;
+  transition: background var(--dur-base) var(--ease-out),
+    color var(--dur-base) var(--ease-out),
+    box-shadow var(--dur-base) var(--ease-out);
+}
+
+.bottom-nav__btn.is-active .bottom-nav__icon {
+  background: var(--grad-primary);
+  color: var(--text-on-accent);
+  box-shadow: var(--glow-accent-sm);
 }
 
 .bottom-nav__label {
   font-family: var(--font-jp);
   font-weight: var(--fw-medium);
-  font-size: var(--fs-micro);
+  font-size: 10px;
   letter-spacing: var(--ls-jp-loose);
+  color: var(--text-muted);
+}
+
+.bottom-nav__btn.is-active .bottom-nav__label {
+  color: var(--text-primary);
 }

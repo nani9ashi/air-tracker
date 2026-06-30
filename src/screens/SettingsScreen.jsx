@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import Button from '../components/Button.jsx'
+import GlassCard from '../components/GlassCard.jsx'
+import Icon from '../components/Icon.jsx'
+import Toast from '../components/Toast.jsx'
 import { useStore } from '../store/useStore.js'
 import {
   getActiveBike,
@@ -13,10 +15,10 @@ import {
 import { toDateInputValue } from '../lib/date.js'
 import './SettingsScreen.css'
 
-const THEME_OPTIONS = [
-  { key: 'auto', label: '自動', hint: '端末の設定に追従' },
-  { key: 'dark', label: 'ダーク', hint: null },
-  { key: 'light', label: 'ライト', hint: null },
+const THEMES = [
+  { key: 'dark', label: 'ダーク', icon: 'moon' },
+  { key: 'light', label: 'ライト', icon: 'sun' },
+  { key: 'auto', label: '自動', icon: 'smartphone' },
 ]
 
 export default function SettingsScreen() {
@@ -25,31 +27,41 @@ export default function SettingsScreen() {
   const theme = state.settings.theme
   const canDelete = state.bikes.length > 1
 
-  const handleAddBike = () => {
-    const n = window.prompt('追加する自転車の名前', '')
-    if (n && n.trim()) addBike(n.trim())
-  }
-
-  const handleDeleteBike = () => {
-    if (!canDelete) return
-    if (window.confirm(`「${bike.name}」を削除しますか？記録もすべて消えます。`)) {
-      removeBike(bike.id)
-    }
-  }
-
   const [name, setName] = useState(bike.name)
-  const [backupMsg, setBackupMsg] = useState(null) // { ok, text }
+  const [toast, setToast] = useState(null)
   const fileRef = useRef(null)
+  const toastTimer = useRef(0)
 
-  // 外部要因（インポート・自転車切替）で名前が変わったら入力欄を同期。
   useEffect(() => {
     setName(bike.name)
   }, [bike.id, bike.name])
 
+  const showToast = (message) => {
+    setToast(message)
+    window.clearTimeout(toastTimer.current)
+    toastTimer.current = window.setTimeout(() => setToast(null), 2200)
+  }
+  useEffect(() => () => window.clearTimeout(toastTimer.current), [])
+
   const commitName = () => {
-    const trimmed = name.trim()
-    if (trimmed && trimmed !== bike.name) setBikeName(trimmed)
-    else setName(bike.name) // 空なら元に戻す
+    const t = name.trim()
+    if (t && t !== bike.name) setBikeName(t)
+    else setName(bike.name)
+  }
+
+  const handleAddBike = () => {
+    const n = window.prompt('追加する自転車の名前', '')
+    if (n && n.trim()) {
+      addBike(n.trim())
+      showToast('自転車を追加しました')
+    }
+  }
+  const handleDeleteBike = () => {
+    if (!canDelete) return
+    if (window.confirm(`「${bike.name}」を削除しますか？記録もすべて消えます。`)) {
+      removeBike(bike.id)
+      showToast('自転車を削除しました')
+    }
   }
 
   const handleExport = () => {
@@ -62,24 +74,18 @@ export default function SettingsScreen() {
     a.click()
     a.remove()
     URL.revokeObjectURL(url)
-    setBackupMsg({ ok: true, text: 'バックアップを書き出しました' })
+    showToast('バックアップを書き出しました')
   }
-
   const handleImportFile = (e) => {
     const file = e.target.files?.[0]
-    e.target.value = '' // 同じファイルを再選択できるようリセット
+    e.target.value = ''
     if (!file) return
     const reader = new FileReader()
     reader.onload = () => {
       const res = importJSON(String(reader.result))
-      setBackupMsg(
-        res.ok
-          ? { ok: true, text: 'バックアップを復元しました' }
-          : { ok: false, text: res.error || '復元に失敗しました' },
-      )
+      showToast(res.ok ? 'バックアップを復元しました' : res.error || '復元に失敗しました')
     }
-    reader.onerror = () =>
-      setBackupMsg({ ok: false, text: 'ファイルを読み取れませんでした' })
+    reader.onerror = () => showToast('ファイルを読み取れませんでした')
     reader.readAsText(file)
   }
 
@@ -92,123 +98,98 @@ export default function SettingsScreen() {
       <main className="settings__main">
         {/* 自転車 */}
         <section className="settings__section">
-          <label className="cad-eyebrow settings__label" htmlFor="bike-name">
-            自転車の名前
-          </label>
-          <input
-            id="bike-name"
-            type="text"
-            className="settings__input"
-            value={name}
-            maxLength={20}
-            onChange={(e) => setName(e.target.value)}
-            onBlur={commitName}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault()
-                e.currentTarget.blur()
-              }
-            }}
-          />
-          <div className="settings__backup">
-            <Button variant="ghost" size="md" fullWidth onClick={handleAddBike}>
-              ＋ 自転車を追加
-            </Button>
-            <Button
-              variant="ghost"
-              size="md"
-              fullWidth
-              onClick={handleDeleteBike}
-              disabled={!canDelete}
-            >
-              🗑 この自転車を削除
-            </Button>
-          </div>
-          {!canDelete && (
-            <p className="settings__hint">自転車は最低1台必要です。</p>
-          )}
+          <span className="settings__label">自転車</span>
+          <GlassCard variant="glass">
+            <label className="settings__sublabel" htmlFor="bike-name">名前</label>
+            <input
+              id="bike-name"
+              type="text"
+              className="settings__input"
+              value={name}
+              maxLength={20}
+              onChange={(e) => setName(e.target.value)}
+              onBlur={commitName}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  e.currentTarget.blur()
+                }
+              }}
+            />
+            <div className="settings__row2">
+              <button type="button" className="sheet-opt settings__btn" onClick={handleAddBike}>
+                <span className="sheet-opt__icon"><Icon name="plus-circle" size={20} /></span>
+                <span className="sheet-opt__label">自転車を追加</span>
+              </button>
+              <button
+                type="button"
+                className="sheet-opt settings__btn"
+                onClick={handleDeleteBike}
+                disabled={!canDelete}
+                aria-disabled={!canDelete}
+              >
+                <span className="sheet-opt__icon"><Icon name="trash-2" size={20} /></span>
+                <span className="sheet-opt__label">削除</span>
+              </button>
+            </div>
+            {!canDelete && <p className="settings__hint">自転車は最低1台必要です。</p>}
+          </GlassCard>
         </section>
 
         {/* テーマ */}
         <section className="settings__section">
-          <span className="cad-eyebrow settings__label" id="theme-label">
-            テーマ
-          </span>
-          <div
-            className="settings__segmented"
-            role="radiogroup"
-            aria-labelledby="theme-label"
-          >
-            {THEME_OPTIONS.map((opt) => {
-              const active = theme === opt.key
+          <span className="settings__label" id="theme-label">テーマ</span>
+          <div className="settings__themes" role="radiogroup" aria-labelledby="theme-label">
+            {THEMES.map((t) => {
+              const active = theme === t.key
               return (
                 <button
-                  key={opt.key}
+                  key={t.key}
                   type="button"
                   role="radio"
                   aria-checked={active}
-                  className={[
-                    'settings__seg',
-                    active ? 'settings__seg--active' : '',
-                  ]
-                    .filter(Boolean)
-                    .join(' ')}
-                  onClick={() => setTheme(opt.key)}
+                  className={['settings__theme-btn', active ? 'is-active' : ''].filter(Boolean).join(' ')}
+                  onClick={() => setTheme(t.key)}
                 >
-                  {opt.label}
+                  <Icon name={t.icon} size={18} />
+                  {t.label}
                 </button>
               )
             })}
           </div>
-          <p className="settings__hint">
-            既定はダーク。「自動」は端末の表示設定（ダーク/ライト）に追従します。
-          </p>
+          <p className="settings__hint">「自動」は端末の表示設定（ダーク/ライト）に追従します。</p>
         </section>
 
         {/* バックアップ */}
         <section className="settings__section">
-          <span className="cad-eyebrow settings__label">バックアップ</span>
-          <div className="settings__backup">
-            <Button variant="ghost" size="md" fullWidth onClick={handleExport}>
-              ⬇ エクスポート
-            </Button>
-            <Button
-              variant="ghost"
-              size="md"
-              fullWidth
-              onClick={() => fileRef.current?.click()}
-            >
-              ⬆ インポート
-            </Button>
+          <span className="settings__label">データのバックアップ</span>
+          <div className="settings__row2">
+            <button type="button" className="sheet-opt settings__btn settings__btn--center" onClick={handleExport}>
+              <Icon name="download" size={18} />
+              書き出し
+            </button>
+            <label className="sheet-opt settings__btn settings__btn--center">
+              <Icon name="upload" size={18} />
+              読み込み
+              <input
+                ref={fileRef}
+                type="file"
+                accept="application/json,.json"
+                onChange={handleImportFile}
+                style={{ display: 'none' }}
+                aria-label="バックアップファイルを選択"
+              />
+            </label>
           </div>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="application/json,.json"
-            onChange={handleImportFile}
-            style={{ display: 'none' }}
-            aria-label="バックアップファイルを選択"
-            tabIndex={-1}
-          />
-          {backupMsg && (
-            <p
-              className={`settings__backup-msg settings__backup-msg--${
-                backupMsg.ok ? 'ok' : 'err'
-              }`}
-              role="status"
-            >
-              {backupMsg.text}
-            </p>
-          )}
-          <p className="settings__hint">
-            データをJSONファイルで保存・復元できます。インポートは現在のデータを置き換えます。
-          </p>
+          <p className="settings__hint">インポートは現在のデータを置き換えます。</p>
         </section>
 
         <footer className="settings__footer">
-          <p className="settings__version">Air Tracker v1.1</p>
+          <p className="settings__version">Air Tracker v1.2</p>
         </footer>
       </main>
+
+      <Toast show={!!toast} message={toast} />
     </div>
   )
 }

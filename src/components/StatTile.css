@@ -1,13 +1,20 @@
 .stat-tile {
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  gap: var(--space-1);
+}
+.stat-tile.is-center {
+  align-items: center;
+  text-align: center;
+}
+
+.stat-tile__head {
+  display: flex;
   align-items: center;
   gap: var(--space-1);
-  padding: var(--space-3) var(--space-4);
-  border-radius: var(--radius-md);
-  background: var(--glass-fill-light);
-  border: 1px solid var(--glass-border-soft);
-  flex: 1;
+  color: var(--text-muted);
 }
 
 .stat-tile__label {
@@ -15,23 +22,33 @@
   font-weight: var(--fw-medium);
   font-size: var(--fs-caption);
   letter-spacing: var(--ls-jp-loose);
-  color: var(--text-muted);
+}
+
+.stat-tile__val {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
 }
 
 .stat-tile__value {
-  font-family: var(--font-display);
+  font-family: var(--font-metric);
   font-weight: var(--fw-bold);
-  font-size: var(--fs-h2);
+  font-size: 40px;
+  line-height: 1;
+  letter-spacing: var(--ls-metric);
   color: var(--text-primary);
   font-variant-numeric: tabular-nums;
-  line-height: 1;
-  display: inline-flex;
-  align-items: baseline;
-  gap: 2px;
+}
+.stat-tile--accent .stat-tile__value {
+  color: var(--teal-400);
+}
+.stat-tile--energy .stat-tile__value {
+  color: var(--ember-400);
 }
 
 .stat-tile__unit {
-  font-size: var(--fs-body-sm);
+  font-family: var(--font-display);
   font-weight: var(--fw-medium);
-  color: var(--text-secondary);
+  font-size: var(--fs-body-sm);
+  color: var(--text-muted);
 }

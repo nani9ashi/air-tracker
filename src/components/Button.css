@@ -2,75 +2,86 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: var(--space-2);
-  min-height: var(--control-h-md);
-  padding: 0 var(--space-6);
-  border-radius: var(--radius-pill);
+  gap: var(--gap-inline);
   font-family: var(--font-jp);
   font-weight: var(--fw-bold);
-  font-size: var(--fs-title);
   letter-spacing: var(--ls-jp);
   line-height: 1;
-  position: relative;
-  isolation: isolate;
+  cursor: pointer;
   transition: transform var(--dur-fast) var(--ease-out),
     box-shadow var(--dur-base) var(--ease-out),
-    filter var(--dur-base) var(--ease-out);
-  will-change: transform;
-}
-
-.btn--md {
-  min-height: var(--control-h-md);
-}
-.btn--lg {
-  min-height: var(--control-h-lg);
-  font-size: var(--fs-h3);
-}
-.btn--full {
-  width: 100%;
+    filter var(--dur-fast) var(--ease-out);
+  -webkit-tap-highlight-color: transparent;
 }
 
 .btn:active {
-  transform: translateY(1px) scale(0.99);
+  transform: scale(0.97);
 }
-
 .btn:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: not-allowed;
   pointer-events: none;
 }
+.btn--block {
+  width: 100%;
+}
 
-/* ---- primary: teal グラデ + グロー ---- */
+/* ---- sizes ---- */
+.btn--sm {
+  height: var(--control-h-sm);
+  padding: 0 16px;
+  font-size: var(--fs-body-sm);
+  border-radius: var(--radius-sm);
+}
+.btn--md {
+  height: var(--control-h-md);
+  padding: 0 24px;
+  font-size: var(--fs-body);
+  border-radius: var(--radius-md);
+}
+.btn--lg {
+  height: var(--control-h-lg);
+  padding: 0 30px;
+  font-size: var(--fs-title);
+  border-radius: var(--radius-md);
+}
+
+/* ---- variants ---- */
 .btn--primary {
-  background: var(--accent-gradient);
+  background: var(--grad-primary);
   color: var(--text-on-accent);
-  box-shadow: var(--glow-accent), var(--inset-glass);
+  border: 1px solid transparent;
+  box-shadow: var(--glow-accent-sm);
 }
 .btn--primary:hover {
-  filter: brightness(1.05);
-  box-shadow: var(--glow-accent), var(--inset-glass), var(--shadow-md);
+  filter: brightness(1.04);
 }
 
-/* ---- energy: ember（達成・超過時など） ---- */
 .btn--energy {
   background: var(--grad-ember);
   color: var(--text-on-accent);
-  box-shadow: var(--glow-energy), var(--inset-glass);
+  border: 1px solid transparent;
+  box-shadow: var(--glow-energy);
 }
 .btn--energy:hover {
-  filter: brightness(1.05);
+  filter: brightness(1.04);
 }
 
-/* ---- ghost: ガラス縁（副アクション） ---- */
-.btn--ghost {
+.btn--secondary {
   background: var(--glass-fill-light);
   color: var(--text-primary);
-  border: 1px solid var(--glass-border);
-  -webkit-backdrop-filter: blur(var(--blur-glass));
-  backdrop-filter: blur(var(--blur-glass));
+  border: 1px solid var(--border-strong);
   box-shadow: var(--inset-glass);
 }
+.btn--secondary:hover {
+  border-color: var(--accent);
+}
+
+.btn--ghost {
+  background: transparent;
+  color: var(--text-accent);
+  border: 1px solid transparent;
+}
 .btn--ghost:hover {
-  border-color: var(--border-strong);
-  background: var(--glass-fill);
+  background: var(--glass-fill-light);
 }

@@ -1,15 +1,19 @@
 import './Button.css'
 
 /**
- * 主アクション用ボタン。
- * variant: 'primary'（teal グラデ＋グロー） | 'energy'（ember） | 'ghost'（ガラス縁）
- * size: 'md'（既定 48px） | 'lg'（56px）
+ * Cadence アクションボタン。
+ * variant: 'primary'(teal grad) | 'energy'(ember grad) | 'secondary' | 'ghost'
+ * size: 'sm' | 'md' | 'lg'。block で全幅。iconLeft/iconRight に Lucide ノード。
  */
 export default function Button({
   children,
   variant = 'primary',
-  size = 'lg',
+  size = 'md',
+  block = false,
   fullWidth = false,
+  disabled = false,
+  iconLeft = null,
+  iconRight = null,
   type = 'button',
   className = '',
   ...rest
@@ -18,15 +22,17 @@ export default function Button({
     'btn',
     `btn--${variant}`,
     `btn--${size}`,
-    fullWidth ? 'btn--full' : '',
+    block || fullWidth ? 'btn--block' : '',
     className,
   ]
     .filter(Boolean)
     .join(' ')
 
   return (
-    <button type={type} className={cls} {...rest}>
-      <span className="btn__label">{children}</span>
+    <button type={type} className={cls} disabled={disabled} {...rest}>
+      {iconLeft}
+      {children != null && <span className="btn__label">{children}</span>}
+      {iconRight}
     </button>
   )
 }

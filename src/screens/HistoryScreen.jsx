@@ -1,62 +1,63 @@
 import { useMemo, useState } from 'react'
-import StatTile from '../components/StatTile.jsx'
-import Heatmap from '../components/Heatmap.jsx'
+import GlassCard from '../components/GlassCard.jsx'
+import ListRow from '../components/ListRow.jsx'
 import Sheet from '../components/Sheet.jsx'
 import Button from '../components/Button.jsx'
+import Icon from '../components/Icon.jsx'
 import { useStore } from '../store/useStore.js'
 import { getActiveAirItem, editHistory, removeHistory } from '../store/store.js'
-import {
-  averageIntervalDays,
-  currentStreak,
-  totalCount,
-  sortedHistory,
-} from '../lib/stats.js'
-import {
-  formatDateJP,
-  daysBetween,
-  toDateInputValue,
-  dateInputToISO,
-} from '../lib/date.js'
+import { averageIntervalDays, totalCount, sortedHistory } from '../lib/stats.js'
+import { formatDateJP, daysBetween, toDateInputValue, dateInputToISO } from '../lib/date.js'
 import './HistoryScreen.css'
+
+const WD = ['日', '月', '火', '水', '木', '金', '土']
 
 export default function HistoryScreen() {
   const state = useStore()
   const item = getActiveAirItem(state)
-
-  const avg = averageIntervalDays(item.history)
-  const streak = currentStreak(item.history, item.intervalDays)
   const total = totalCount(item.history)
+  const avg = averageIntervalDays(item.history)
 
-  // 編集対象の履歴エントリと、編集中の日付値。
   const [editing, setEditing] = useState(null)
   const [editValue, setEditValue] = useState('')
 
-  // 新しい順のリスト。各行に「前回からの間隔」を付与。
   const rows = useMemo(() => {
     const asc = sortedHistory(item.history)
+    const now = new Date()
     return asc
-      .map((h, i) => ({
-        id: h.id,
-        date: h.date,
-        gap: i === 0 ? null : daysBetween(asc[i - 1].date, new Date(h.date)),
-      }))
+      .map((h, i) => {
+        const d = new Date(h.date)
+        const ago = daysBetween(h.date, now)
+        return {
+          id: h.id,
+          date: h.date,
+          dateLabel: `${d.getMonth() + 1}月${d.getDate()}日`,
+          weekday: `(${WD[d.getDay()]})`,
+          rel: ago === 0 ? '今日' : `${ago}日前`,
+          interval: i === 0 ? '最初の記録' : `前回から${daysBetween(asc[i - 1].date, d)}日`,
+        }
+      })
       .reverse()
   }, [item.history])
+
+  const histMsg =
+    total >= 2
+      ? `これまで${total}回記録。平均${avg}日間隔です。`
+      : total === 1
+        ? '最初の記録があります。次の空気入れもお忘れなく。'
+        : ''
 
   const openEdit = (row) => {
     setEditing(row)
     setEditValue(toDateInputValue(new Date(row.date)))
   }
   const closeEdit = () => setEditing(null)
-
   const saveEdit = () => {
     if (editing && editValue) editHistory(editing.id, dateInputToISO(editValue))
     closeEdit()
   }
-
   const deleteEntry = () => {
-    if (!editing) return
-    if (window.confirm('この記録を削除しますか？')) {
+    if (editing && window.confirm('この記録を削除しますか？')) {
       removeHistory(editing.id)
       closeEdit()
     }
@@ -69,44 +70,60 @@ export default function HistoryScreen() {
       </header>
 
       <main className="history__main">
-        <div className="history__stats">
-          <StatTile label="平均間隔" value={avg == null ? '—' : avg} unit={avg == null ? '' : '日'} />
-          <StatTile label="連続達成" value={streak} unit="回" />
-          <StatTile label="記録数" value={total} unit="回" />
-        </div>
-
-        <section aria-label="記録ヒートマップ">
-          <Heatmap history={item.history} />
-        </section>
-
-        {rows.length === 0 ? (
-          <div className="history__empty">
-            <span className="history__empty-icon" aria-hidden="true">🚲</span>
-            <p className="cad-body">まだ記録がありません。</p>
-            <p className="cad-label" style={{ color: 'var(--text-muted)' }}>
-              ホームの「空気入れた！」で記録できます。
-            </p>
+        <GlassCard variant="glass">
+          <div className="history__card-head">
+            <span className="history__card-title">記録</span>
+            <span className="history__card-hint">タップ／右クリックで編集</span>
           </div>
-        ) : (
-          <ul className="history__list">
-            {rows.map((row) => (
-              <li key={row.id}>
-                <button
-                  type="button"
-                  className="history__item"
+
+          {histMsg && <p className="history__banner">{histMsg}</p>}
+
+          {rows.length === 0 ? (
+            <div className="history__empty">
+              <Icon name="bike" size={40} style={{ color: 'var(--text-muted)', opacity: 0.6 }} />
+              <p className="cad-body" style={{ color: 'var(--text-secondary)' }}>まだ記録がありません。</p>
+              <p className="cad-label" style={{ color: 'var(--text-muted)' }}>
+                ホームの「空気入れた！」で記録できます。
+              </p>
+            </div>
+          ) : (
+            <div className="history__list">
+              {rows.map((row) => (
+                <ListRow
+                  key={row.id}
+                  role="button"
+                  tabIndex={0}
+                  className="history__row"
                   onClick={() => openEdit(row)}
-                  aria-label={`${formatDateJP(row.date)} の記録を編集`}
-                >
-                  <span className="history__date">{formatDateJP(row.date)}</span>
-                  <span className="history__gap">
-                    {row.gap == null ? '最初の記録' : `前回から ${row.gap}日`}
-                  </span>
-                  <span className="history__chevron" aria-hidden="true">›</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
+                  onContextMenu={(e) => {
+                    e.preventDefault()
+                    openEdit(row)
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      openEdit(row)
+                    }
+                  }}
+                  aria-label={`${row.dateLabel}${row.weekday} の記録を編集`}
+                  thumb={
+                    <span className="history__thumb" aria-hidden="true">
+                      <Icon name="check" size={18} style={{ color: 'var(--text-accent)' }} />
+                    </span>
+                  }
+                  title={
+                    <>
+                      {row.dateLabel}{' '}
+                      <span className="history__wd">{row.weekday}</span>
+                    </>
+                  }
+                  subtitle={`${row.rel} ・ ${row.interval}`}
+                  trailing={<Icon name="more-vertical" size={18} style={{ color: 'var(--text-muted)' }} />}
+                />
+              ))}
+            </div>
+          )}
+        </GlassCard>
       </main>
 
       <Sheet open={!!editing} onClose={closeEdit} title="記録を編集">
@@ -124,11 +141,11 @@ export default function HistoryScreen() {
               onChange={(e) => setEditValue(e.target.value)}
             />
           </div>
-          <Button variant="primary" size="md" fullWidth onClick={saveEdit}>
+          <Button variant="primary" size="md" block iconLeft={<Icon name="check" size={18} />} onClick={saveEdit}>
             保存
           </Button>
-          <Button variant="ghost" size="md" fullWidth onClick={deleteEntry}>
-            🗑 削除
+          <Button variant="ghost" size="md" block iconLeft={<Icon name="trash-2" size={18} />} onClick={deleteEntry}>
+            削除
           </Button>
         </div>
       </Sheet>

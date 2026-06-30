@@ -9,16 +9,25 @@
 }
 
 .ring__track {
-  stroke: var(--glass-fill-light);
-}
-
-[data-theme='light'] .ring__track {
   stroke: var(--navy-700);
 }
 
 .ring__value {
-  transition: stroke-dasharray var(--dur-slow) var(--ease-out),
-    stroke var(--dur-base) var(--ease-out);
+  transition: stroke-dashoffset var(--dur-slow) var(--ease-out);
+}
+
+/* ガラス調リム（gloss=true）：上ハイライト＋ヘアライン縁 */
+.ring__gloss {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-circle);
+  pointer-events: none;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  background: linear-gradient(
+    160deg,
+    rgba(255, 255, 255, 0.12),
+    rgba(255, 255, 255, 0) 45%
+  );
 }
 
 .ring__center {

@@ -1,37 +1,31 @@
 import './BottomNav.css'
 
 /**
- * 下タブナビ（ホーム・設定の2タブ）。
- * items: [{ key, label, icon }], active: 現在キー, onChange(key)。
+ * 下タブナビ（Cadence 準拠：浮遊ガラスドック）。
+ * アクティブタブはアイコンに角丸グラデスクエア＋グローのハイライト。
+ * items: [{ key, label, icon }]（icon は React ノード＝<Icon name/>）。
  */
 export default function BottomNav({ items, active, onChange }) {
   return (
     <nav className="bottom-nav" aria-label="メインナビゲーション">
-      <ul className="bottom-nav__list">
-        {items.map((item) => {
-          const isActive = item.key === active
-          return (
-            <li key={item.key} className="bottom-nav__item">
-              <button
-                type="button"
-                className={[
-                  'bottom-nav__btn',
-                  isActive ? 'bottom-nav__btn--active' : '',
-                ]
-                  .filter(Boolean)
-                  .join(' ')}
-                aria-current={isActive ? 'page' : undefined}
-                onClick={() => onChange(item.key)}
-              >
-                <span className="bottom-nav__icon" aria-hidden="true">
-                  {item.icon}
-                </span>
-                <span className="bottom-nav__label">{item.label}</span>
-              </button>
-            </li>
-          )
-        })}
-      </ul>
+      {items.map((item) => {
+        const on = item.key === active
+        return (
+          <button
+            key={item.key}
+            type="button"
+            className={['bottom-nav__btn', on ? 'is-active' : ''].filter(Boolean).join(' ')}
+            aria-label={item.label}
+            aria-current={on ? 'page' : undefined}
+            onClick={() => onChange(item.key)}
+          >
+            <span className="bottom-nav__icon" aria-hidden="true">
+              {item.icon}
+            </span>
+            <span className="bottom-nav__label">{item.label}</span>
+          </button>
+        )
+      })}
     </nav>
   )
 }
