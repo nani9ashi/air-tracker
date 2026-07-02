@@ -5,6 +5,11 @@ import { VitePWA } from 'vite-plugin-pwa'
 // モバイル前提・相対パス配信（任意のホスティングに置けるよう base: './'）。
 export default defineConfig({
   base: './',
+  // Vitest 設定（純粋ロジックのユニットテスト）。store.js が localStorage を触るため jsdom。
+  test: {
+    environment: 'jsdom',
+    globals: true,
+  },
   plugins: [
     react(),
     VitePWA({
