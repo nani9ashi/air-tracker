@@ -113,6 +113,20 @@
 .settings__footer {
   margin-top: var(--space-4);
 }
+.settings__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: default;
+  -webkit-tap-highlight-color: transparent;
+}
+.settings__wordmark {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--fs-body);
+  letter-spacing: 0.04em;
+  color: var(--text-primary);
+}
 .settings__version {
   font-family: var(--font-display);
   font-size: var(--fs-caption);

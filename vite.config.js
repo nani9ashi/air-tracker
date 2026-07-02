@@ -22,8 +22,8 @@ export default defineConfig({
         'apple-touch-icon-180.png',
       ],
       manifest: {
-        name: 'Air Tracker — 空気入れトラッカー',
-        short_name: 'Air Tracker',
+        name: 'QUUKI — 自転車 空気入れリマインダー',
+        short_name: 'QUUKI',
         description:
           '自転車のタイヤに空気を入れてからの経過日数を記録するアプリ',
         lang: 'ja',
