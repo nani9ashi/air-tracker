@@ -3,6 +3,7 @@ import Sheet from '../components/Sheet.jsx'
 import Icon from '../components/Icon.jsx'
 import { useStore } from '../store/useStore.js'
 import { setActiveBike, addBike, getLimits } from '../store/store.js'
+import { track, EV } from '../lib/analytics.js'
 import './BikeSheet.css'
 
 /**
@@ -23,6 +24,7 @@ export default function BikeSheet({ open, onClose }) {
 
   const add = () => {
     if (addLocked) {
+      track(EV.PAYWALL, { source: 'add_bike' })
       setShowPremium(true)
       return
     }

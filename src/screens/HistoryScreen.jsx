@@ -6,6 +6,7 @@ import Button from '../components/Button.jsx'
 import Icon from '../components/Icon.jsx'
 import { useStore } from '../store/useStore.js'
 import { getActiveAirItem, editHistory, removeHistory, getLimits } from '../store/store.js'
+import { track, EV } from '../lib/analytics.js'
 import { averageIntervalDays, totalCount, sortedHistory } from '../lib/stats.js'
 import { formatDateJP, daysBetween, toDateInputValue, dateInputToISO } from '../lib/date.js'
 import './HistoryScreen.css'
@@ -161,7 +162,10 @@ export default function HistoryScreen() {
               <button
                 type="button"
                 className="history__lock-row"
-                onClick={() => setShowUpsell((v) => !v)}
+                onClick={() => {
+                  track(EV.PAYWALL, { source: 'history' })
+                  setShowUpsell((v) => !v)
+                }}
                 aria-label={`残り${locked.length}件はProで全件表示`}
               >
                 {/* TODO(1b-2): ここを実ペイウォールへ差し替える */}

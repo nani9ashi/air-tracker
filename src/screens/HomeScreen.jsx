@@ -6,6 +6,7 @@ import GlassCard from '../components/GlassCard.jsx'
 import IconButton from '../components/IconButton.jsx'
 import Icon from '../components/Icon.jsx'
 import QuukiMark from '../components/QuukiMark.jsx'
+import { track, EV } from '../lib/analytics.js'
 import PumpSheet from './PumpSheet.jsx'
 import BikeSheet from './BikeSheet.jsx'
 import { useStore } from '../store/useStore.js'
@@ -70,6 +71,7 @@ export default function HomeScreen({ onTab }) {
 
   const onConfirmPump = (iso) => {
     pump(iso)
+    track(EV.RESET)
     setSheetOpen(false)
   }
   const onSelectPreset = (d) => {
@@ -78,6 +80,7 @@ export default function HomeScreen({ onTab }) {
   }
   const onCustomClick = () => {
     if (!limits.customCycle) {
+      track(EV.PAYWALL, { source: 'custom_interval' })
       setShowPremium((v) => !v)
       return
     }
