@@ -67,6 +67,18 @@
   filter: brightness(1.04);
 }
 
+/* amber（ステータス warning）。地の amber は両テーマ共通の固定色なので、
+   テキストはテーマ非依存の固定インク（明色地で常に可読）にする。 */
+.btn--warning {
+  background: var(--grad-warning);
+  color: #07110f;
+  border: 1px solid transparent;
+  box-shadow: 0 6px 18px -8px rgba(255, 178, 62, 0.55);
+}
+.btn--warning:hover {
+  filter: brightness(1.04);
+}
+
 .btn--secondary {
   background: var(--glass-fill-light);
   color: var(--text-primary);

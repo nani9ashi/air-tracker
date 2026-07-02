@@ -5,6 +5,7 @@ import Chip from '../components/Chip.jsx'
 import GlassCard from '../components/GlassCard.jsx'
 import IconButton from '../components/IconButton.jsx'
 import Icon from '../components/Icon.jsx'
+import QuukiMark from '../components/QuukiMark.jsx'
 import PumpSheet from './PumpSheet.jsx'
 import BikeSheet from './BikeSheet.jsx'
 import { useStore } from '../store/useStore.js'
@@ -80,7 +81,7 @@ export default function HomeScreen({ onTab }) {
       setShowPremium((v) => !v)
       return
     }
-    const input = window.prompt('カスタムサイクル（日数）', String(item.intervalDays))
+    const input = window.prompt('カスタム間隔（日数）', String(item.intervalDays))
     const v = Number(input)
     if (Number.isFinite(v) && v >= 1) setCycle(Math.round(v))
   }
@@ -99,10 +100,10 @@ export default function HomeScreen({ onTab }) {
     return (
       <>
         <span className="home__ring-eyebrow">{isOver ? '超過' : 'あと'}</span>
-        <span className="cad-display home__ring-num">
+        <span className={`cad-display home__ring-num${isOver ? ' home__ring-num--over' : ''}`}>
           {isOver ? status.overdueBy : status.remaining}
         </span>
-        <span className="home__ring-unit">日</span>
+        <span className={`home__ring-unit${isOver ? ' home__ring-unit--over' : ''}`}>日</span>
       </>
     )
   })()
@@ -116,7 +117,7 @@ export default function HomeScreen({ onTab }) {
           onClick={() => setBikeSheetOpen(true)}
           aria-label={`自転車を切り替え（現在: ${bike.name}）`}
         >
-          <span className="home__eyebrow">TIRE AIR · メンテナンス</span>
+          <span className="home__eyebrow"><QuukiMark size={12} /> QUUKI</span>
           <span className="home__bikename">
             {bike.name}
             <Icon name="chevron-right" size={18} className="home__bike-caret" />
@@ -188,14 +189,14 @@ export default function HomeScreen({ onTab }) {
               selected={isCustom}
               locked={!limits.customCycle}
               onClick={onCustomClick}
-              aria-label={limits.customCycle ? 'カスタムサイクル' : 'カスタムサイクル（Proで解放）'}
+              aria-label={limits.customCycle ? 'カスタム間隔' : 'カスタム間隔（Proで解放）'}
             >
-              {isCustom ? `${item.intervalDays}日` : 'カスタム'}
+              {isCustom ? `${item.intervalDays}日` : 'カスタム間隔'}
             </Chip>
           </div>
           {showPremium && (
             <p className="home__premium" role="status">
-              <Icon name="lock" size={14} /> カスタムサイクルはProで解放されます
+              <Icon name="lock" size={14} /> カスタム間隔はProで解放されます
             </p>
           )}
         </section>

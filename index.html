@@ -15,20 +15,37 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="Air Tracker" />
+    <meta name="apple-mobile-web-app-title" content="QUUKI" />
 
     <!-- フォント: 本文=Noto Sans JP / 数字=Saira・Saira Condensed -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&family=Saira:wght@600;700&family=Saira+Condensed:wght@600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&family=Saira:wght@600;700;800&family=Saira+Condensed:wght@600;700&display=swap"
       rel="stylesheet"
     />
 
-    <title>Air Tracker</title>
+    <title>QUUKI</title>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- 起動スプラッシュ（React マウントで置換される。CSS 読込前でも出るようインラインスタイル） -->
+      <div style="position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;background:#07110F;">
+        <svg width="64" height="64" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+          <defs>
+            <linearGradient id="quuki-splash" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#34E0D2" />
+              <stop offset="1" stop-color="#0DA9A9" />
+            </linearGradient>
+          </defs>
+          <g transform="translate(-2 0)" stroke="url(#quuki-splash)" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M16 16 L34 32 L16 48" />
+            <path d="M34 16 L52 32 L34 48" />
+          </g>
+        </svg>
+        <span style="font-family:'Saira',sans-serif;font-weight:800;font-size:30px;letter-spacing:0.06em;color:#fff;">QUUKI</span>
+      </div>
+    </div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

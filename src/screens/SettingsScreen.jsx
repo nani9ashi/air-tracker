@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import GlassCard from '../components/GlassCard.jsx'
 import Icon from '../components/Icon.jsx'
+import QuukiMark from '../components/QuukiMark.jsx'
 import Toast from '../components/Toast.jsx'
 import { useStore } from '../store/useStore.js'
 import {
@@ -84,7 +85,7 @@ export default function SettingsScreen() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `air-tracker-backup-${toDateInputValue()}.json`
+    a.download = `quuki-backup-${toDateInputValue()}.json`
     document.body.appendChild(a)
     a.click()
     a.remove()
@@ -241,7 +242,11 @@ export default function SettingsScreen() {
         </section>
 
         <footer className="settings__footer">
-          <p className="settings__version" onClick={bumpPlan}>Air Tracker v{APP_VERSION}</p>
+          <div className="settings__brand" onClick={bumpPlan}>
+            <QuukiMark size={20} />
+            <span className="settings__wordmark">QUUKI</span>
+            <span className="settings__version">v{APP_VERSION}</span>
+          </div>
         </footer>
       </main>
 

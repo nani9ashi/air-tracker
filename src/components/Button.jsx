@@ -2,7 +2,7 @@ import './Button.css'
 
 /**
  * Cadence アクションボタン。
- * variant: 'primary'(teal grad) | 'energy'(ember grad) | 'secondary' | 'ghost'
+ * variant: 'primary'(teal grad) | 'energy'(ember grad) | 'warning'(amber grad) | 'secondary' | 'ghost'
  * size: 'sm' | 'md' | 'lg'。block で全幅。iconLeft/iconRight に Lucide ノード。
  */
 export default function Button({
