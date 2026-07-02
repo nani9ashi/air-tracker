@@ -7,6 +7,7 @@ import IconButton from '../components/IconButton.jsx'
 import Icon from '../components/Icon.jsx'
 import QuukiMark from '../components/QuukiMark.jsx'
 import { track, EV } from '../lib/analytics.js'
+import { requestPermissionAfterReset, syncActiveReminder } from '../lib/notifications.js'
 import PumpSheet from './PumpSheet.jsx'
 import BikeSheet from './BikeSheet.jsx'
 import { useStore } from '../store/useStore.js'
@@ -72,11 +73,14 @@ export default function HomeScreen({ onTab }) {
   const onConfirmPump = (iso) => {
     pump(iso)
     track(EV.RESET)
+    // 初回リセット後に通知許可を求め、許可済みなら次回予定日に(再)スケジュール（nativeのみ）。
+    requestPermissionAfterReset()
     setSheetOpen(false)
   }
   const onSelectPreset = (d) => {
     setShowPremium(false)
     setCycle(d)
+    syncActiveReminder() // 周期変更で予定日が変わる→再スケジュール（許可済みのみ）
   }
   const onCustomClick = () => {
     if (!limits.customCycle) {
@@ -86,7 +90,10 @@ export default function HomeScreen({ onTab }) {
     }
     const input = window.prompt('カスタム間隔（日数）', String(item.intervalDays))
     const v = Number(input)
-    if (Number.isFinite(v) && v >= 1) setCycle(Math.round(v))
+    if (Number.isFinite(v) && v >= 1) {
+      setCycle(Math.round(v))
+      syncActiveReminder()
+    }
   }
 
   // リング中央（白文字・色だけに頼らず数字＋ラベル）。

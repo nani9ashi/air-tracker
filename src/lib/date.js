@@ -122,3 +122,13 @@ export function formatDateJP(d) {
   const x = new Date(d)
   return `${x.getMonth() + 1}月${x.getDate()}日(${WD[x.getDay()]})`
 }
+
+// 次回予定日（lastReset + intervalDays）のローカル 0:00 を返す。
+// lastReset 未設定/不正 intervalDays は null。通知スケジュール用（純関数）。
+export function computeNextDueDate(lastReset, intervalDays) {
+  const n = Number(intervalDays)
+  if (!lastReset || !Number.isFinite(n) || n < 1) return null
+  const d = startOfDayLocal(lastReset)
+  d.setDate(d.getDate() + Math.round(n))
+  return d
+}

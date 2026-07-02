@@ -4,6 +4,7 @@ import {
   computeStatus,
   toDateInputValue,
   dateInputToISO,
+  computeNextDueDate,
 } from './date.js'
 
 // すべてローカルカレンダー日で扱う純粋関数。TZ 揺れを避けるためローカル Date で構築。
@@ -52,5 +53,20 @@ describe('toDateInputValue / dateInputToISO', () => {
   it('YYYY-MM-DD を往復できる', () => {
     const iso = dateInputToISO('2026-06-20')
     expect(toDateInputValue(new Date(iso))).toBe('2026-06-20')
+  })
+})
+
+describe('computeNextDueDate', () => {
+  it('lastReset + intervalDays のローカル0:00を返す', () => {
+    const due = computeNextDueDate(new Date(2026, 5, 1, 13, 0).toISOString(), 14)
+    expect(due.getFullYear()).toBe(2026)
+    expect(due.getMonth()).toBe(5) // 6月
+    expect(due.getDate()).toBe(15) // 1 + 14
+    expect(due.getHours()).toBe(0)
+  })
+  it('未設定/不正入力は null', () => {
+    expect(computeNextDueDate(null, 14)).toBeNull()
+    expect(computeNextDueDate('2026-06-01T00:00:00Z', 0)).toBeNull()
+    expect(computeNextDueDate('2026-06-01T00:00:00Z', undefined)).toBeNull()
   })
 })
