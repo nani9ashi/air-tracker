@@ -8,6 +8,7 @@ import Icon from './components/Icon.jsx'
 import PreviewScreen from './screens/PreviewScreen.jsx'
 import { useStore } from './store/useStore.js'
 import { applyTheme, watchSystemTheme } from './lib/theme.js'
+import { syncActiveReminder } from './lib/notifications.js'
 
 function useHash() {
   const [hash, setHash] = useState(window.location.hash)
@@ -32,6 +33,12 @@ export default function App() {
   const hash = useHash()
   const [tab, setTab] = useState('home')
   useApplyTheme()
+
+  // 起動時、通知が許可済みなら現在の予定日でリマインダーを再同期（プロンプトなし・nativeのみ）。
+  // ※履歴の編集/削除で予定日が変わる場合は次のリセット/周期変更/再起動で整合する（basic）。
+  useEffect(() => {
+    syncActiveReminder()
+  }, [])
 
   // 開発時のみ #preview でコンポーネントカタログ。
   if (import.meta.env.DEV && hash === '#preview') {
