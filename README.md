@@ -159,7 +159,20 @@
 
 ---
 
-## 10. 関連ファイル
+## 10. Android（Capacitor）ビルド（v2.0・1a-1）
+
+既存 Web を `@capacitor/android` でラップしてネイティブアプリ化。`appId = com.quuki.app`（**公開後不可変**）。
+
+- **前提**: Android Studio（最新）＋ Android SDK ＋ JDK 21（Capacitor 8 が要求。最近の Android Studio は JDK21 同梱）。
+- **同期**: `npm run cap:sync`（＝`vite build --mode capacitor` で **SW/PWA を外した** dist を作り `cap sync android`）。
+- **起動**: `npm run cap:open` → Android Studio で実機/エミュにデバッグ実行。
+- **ネイティブ用ビルドの要点**: `--mode capacitor` では **Service Worker を載せない**（端末内配信のため不要・衝突回避）。dev専用コード（設定5タップのplan切替 / `window.setPlan` / `#preview`）は本番ビルドで自動的に除去される。
+- **既知の後続（1a-1のブロッカーではない）**: ①`window.prompt/confirm`（カスタム間隔・自転車名・削除）は Capacitor がネイティブダイアログにブリッジ＝動作するが、UX磨きで将来 `Sheet` 入力へ置換 ②バックアップ書出/読込は WebView 制約のため 1b（Pro/IAP登場時）に `@capacitor/filesystem`＋共有/ピッカーで対応 ③Google Fonts はオンライン読込（オフラインはシステムfallback）＝将来ローカル同梱を検討。
+- `android/` はコミット対象（build成果物・`local.properties` は `android/.gitignore` で除外）。
+
+---
+
+## 11. 関連ファイル
 
 - `v1実装手順書.md` — Claude Code用のフェーズ別ビルド仕様（受け入れ基準付き）。
 - `design-reference.css` — CADENCEデザイントークン（ダーク既定＋ライトテーマ）。

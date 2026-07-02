@@ -67,7 +67,7 @@ export default function PumpSheet({ open, onClose, onConfirm }) {
               onChange={(e) => setDateValue(e.target.value)}
             />
             <Button
-              variant="primary"
+              variant="energy"
               size="md"
               block
               onClick={() => dateValue && onConfirm(dateInputToISO(dateValue))}
