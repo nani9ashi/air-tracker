@@ -183,6 +183,17 @@
   padding: var(--space-3);
 }
 
+/* 予約の可視化（次回お知らせ）。控えめ・常設の1行。 */
+.home__reminder {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: center;
+  font-family: var(--font-jp);
+  font-size: var(--fs-caption);
+  color: var(--text-muted);
+}
+
 /* date input (PumpSheet) */
 .date-input {
   width: 100%;
