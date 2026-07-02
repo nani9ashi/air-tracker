@@ -103,7 +103,7 @@ export default function HomeScreen({ onTab }) {
         <span className={`cad-display home__ring-num${isOver ? ' home__ring-num--over' : ''}`}>
           {isOver ? status.overdueBy : status.remaining}
         </span>
-        <span className={`home__ring-unit${isOver ? ' home__ring-unit--over' : ''}`}>日</span>
+        <span className="home__ring-unit">日</span>
       </>
     )
   })()

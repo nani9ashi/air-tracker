@@ -49,7 +49,6 @@
   --grad-primary:        linear-gradient(135deg, #34E0D2 0%, #0DA9A9 100%);
   --grad-primary-bright: linear-gradient(135deg, #5FF0E4 0%, #14C2C2 100%);
   --grad-ember:          linear-gradient(135deg, #FFA24D 0%, #F2641A 100%);
-  --grad-warning:        linear-gradient(135deg, #FFD27A 0%, #FFB23E 100%);
   --grad-sheen:          linear-gradient(160deg, rgba(255,255,255,0.10), rgba(255,255,255,0.02) 45%, rgba(255,255,255,0) 100%);
   --grad-spotlight:      linear-gradient(150deg, #16C5C0 0%, #0A6E72 60%, #07151A 100%);
 

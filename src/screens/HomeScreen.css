@@ -106,9 +106,8 @@
   font-size: var(--fs-body);
   color: rgba(255, 255, 255, 0.9);
 }
-/* 超過カウントアップ時は中央の数字・単位を赤系統に（overdue ピル/リングと統一） */
-.home__ring-num--over,
-.home__ring-unit--over {
+/* 超過カウントアップ時は中央の数字を赤系統に（単位「日」は白のまま） */
+.home__ring-num--over {
   color: var(--danger);
 }
 .home__hero-pill {
