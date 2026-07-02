@@ -1,23 +1,27 @@
 // ============================================================
 // notifications.js — 基本リマインダー通知（@capacitor/local-notifications）。
 // native(Android) のみ動作。web/PWA は完全 no-op（analytics.js と同じ安全ガード）。
-// リセット時に「次回予定日（lastReset+intervalDays）」の朝9時に inexact でスケジュール。
+// 出し分けロジックは純関数 notify-plan.js（テスト対象）に委譲。ここは native ラッパ。
 // SCHEDULE_EXACT_ALARM は使わない（マニフェストで除去・プラグインは inexact フォールバック）。
 // ============================================================
 import { Capacitor } from '@capacitor/core'
 import { LocalNotifications } from '@capacitor/local-notifications'
 import { getState, getActiveBike, getActiveAirItem } from '../store/store.js'
-import { computeNextDueDate } from './date.js'
+import { planNotifications } from './notify-plan.js'
 
 const NATIVE = Capacitor.isNativePlatform()
-const REMINDER_HOUR = 9 // 予定日の朝9時（±数時間ずれてよい）
 
-// bikeId から安定した正の 32bit 整数（複数台でも通知IDが衝突しない）。
-function notifId(bikeId) {
-  const s = String(bikeId || 'bike')
+// 文字列から安定した正の 32bit 整数（通知ID）。
+function hashId(key) {
+  const s = String(key)
   let h = 5381
   for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0
   return (Math.abs(h) % 2000000000) || 1
+}
+// 自転車×スロットで衝突しないID。catchup は primary と同スロット（置換）。
+function idForKind(bikeId, kind) {
+  const slot = kind === 'renudge' ? 'renudge' : 'primary'
+  return hashId(String(bikeId || 'bike') + ':' + slot)
 }
 
 // 通知権限を確認し、未確定なら要求。granted 真偽を返す。非native/例外は false。
@@ -34,9 +38,20 @@ export async function ensureNotificationPermission() {
   }
 }
 
-// アクティブ自転車の次回予定日にリマインダーを(再)スケジュール。
-// プロンプトはしない（権限済みのときのみ動作）。過去予定は張らない。
-export async function syncActiveReminder() {
+// 通知が有効か（native かつ許可済み）。インライン表示の可否に使う。
+export async function isNotificationEnabled() {
+  if (!NATIVE) return false
+  try {
+    const p = await LocalNotifications.checkPermissions()
+    return p.display === 'granted'
+  } catch {
+    return false
+  }
+}
+
+// アクティブ自転車のリマインダーを(再)スケジュール。プロンプトはしない（許可済みのみ動作）。
+// userAction=true（リセット/周期変更）は超過時に直近20時へキャッチアップ。false（起動時）は過去分を張らない。
+export async function syncActiveReminder({ userAction = false } = {}) {
   if (!NATIVE) return
   try {
     const perm = await LocalNotifications.checkPermissions()
@@ -44,24 +59,22 @@ export async function syncActiveReminder() {
     const s = getState()
     const bike = getActiveBike(s)
     const item = getActiveAirItem(s)
-    const id = notifId(bike.id)
-    // 前回分を消してから貼り直す（周期変更・再リセットで最新の予定日に）。
-    await LocalNotifications.cancel({ notifications: [{ id }] })
-    const due = computeNextDueDate(item.lastReset, item.intervalDays)
-    if (!due) return
-    const at = new Date(due)
-    at.setHours(REMINDER_HOUR, 0, 0, 0)
-    if (at.getTime() <= Date.now()) return // 既に超過なら張らない（起動毎スパム回避）
+    // primary/renudge の両スロットを消してから貼り直す（多重・古い予約を残さない）。
+    const ids = [idForKind(bike.id, 'primary'), idForKind(bike.id, 'renudge')]
+    await LocalNotifications.cancel({ notifications: ids.map((id) => ({ id })) })
+    const plan = planNotifications(bike.name, item.lastReset, item.intervalDays, {
+      userAction,
+      now: Date.now(),
+    })
+    if (!plan.length) return
     await LocalNotifications.schedule({
-      notifications: [
-        {
-          id,
-          title: 'そろそろ空気入れの時期です',
-          body: `「${bike.name}」のタイヤに空気を入れましょう（${item.intervalDays}日サイクル）`,
-          schedule: { at }, // allowWhileIdle 指定なし＝exact に依存しない
-          smallIcon: 'ic_stat_quuki',
-        },
-      ],
+      notifications: plan.map((n) => ({
+        id: idForKind(bike.id, n.kind),
+        title: n.title,
+        body: n.body,
+        schedule: { at: n.at }, // allowWhileIdle 指定なし＝exact に依存しない
+        smallIcon: 'ic_stat_quuki',
+      })),
     })
   } catch (e) {
     // 通知の失敗でアプリを壊さない。
@@ -73,5 +86,5 @@ export async function syncActiveReminder() {
 export async function requestPermissionAfterReset() {
   if (!NATIVE) return
   const granted = await ensureNotificationPermission()
-  if (granted) await syncActiveReminder()
+  if (granted) await syncActiveReminder({ userAction: true })
 }
