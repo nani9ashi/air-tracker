@@ -61,7 +61,8 @@ export default function SettingsScreen() {
   const handleAddBike = () => {
     if (addLocked) {
       track(EV.PAYWALL, { source: 'settings_add_bike' })
-      showToast('複数の自転車はPremiumで解放されます')
+      // 表示はPro（テスター整合）。内部は premium ゲート。⚠1b-2 で要再整合。
+      showToast('複数の自転車はProで解放されます')
       return
     }
     const n = window.prompt('追加する自転車の名前', '')
@@ -153,7 +154,7 @@ export default function SettingsScreen() {
                 type="button"
                 className="sheet-opt settings__btn"
                 onClick={handleAddBike}
-                aria-label={addLocked ? '自転車を追加（Premiumで解放）' : '自転車を追加'}
+                aria-label={addLocked ? '自転車を追加（Proで解放）' : '自転車を追加'}
               >
                 <span className="sheet-opt__icon">
                   <Icon name={addLocked ? 'lock' : 'plus-circle'} size={20} />

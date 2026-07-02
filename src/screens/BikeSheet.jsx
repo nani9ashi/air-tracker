@@ -8,7 +8,9 @@ import './BikeSheet.css'
 
 /**
  * 自転車の切替・追加シート（ホームヘッダから開く）。
- * 複数自転車は Premium（free/pro は1台）。
+ * 複数自転車は内部的に Premium ゲート（free/pro は1台）。
+ * ただし表示上は他ロックと揃えて「Proで解放」と案内する（テスター整合）。
+ * ⚠ 1b-2 のペイウォール実装時に要再整合（Pro購入では複数台は解放されない）。
  */
 export default function BikeSheet({ open, onClose }) {
   const state = useStore()
@@ -66,7 +68,7 @@ export default function BikeSheet({ open, onClose }) {
         type="button"
         className="bike-sheet__add"
         onClick={add}
-        aria-label={addLocked ? '自転車を追加（Premiumで解放）' : '自転車を追加'}
+        aria-label={addLocked ? '自転車を追加（Proで解放）' : '自転車を追加'}
       >
         {addLocked ? (
           <>
@@ -79,7 +81,7 @@ export default function BikeSheet({ open, onClose }) {
 
       {showPremium && (
         <p className="bike-sheet__premium" role="status">
-          <Icon name="lock" size={14} /> 複数の自転車の管理はPremiumで解放されます
+          <Icon name="lock" size={14} /> 複数の自転車の管理はProで解放されます
         </p>
       )}
     </Sheet>
