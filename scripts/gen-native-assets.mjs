@@ -45,4 +45,17 @@ for (const j of jobs) {
   await sharp(j.buf).png().toFile(join(outDir, j.file))
   console.log('generated assets/' + j.file)
 }
+
+// 通知スモールアイコン（白シェブロン・透過）を android res に直接生成。
+// @capacitor/assets は通知アイコン非対応のため sharp で各密度を書き出す。
+// Android は小アイコンをアルファ（シルエット）で描画する＝白＝正しく表示される。
+const resDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'android', 'app', 'src', 'main', 'res')
+const statDensities = { 'drawable-mdpi': 24, 'drawable-hdpi': 36, 'drawable-xhdpi': 48, 'drawable-xxhdpi': 72, 'drawable-xxxhdpi': 96 }
+for (const [dir, px] of Object.entries(statDensities)) {
+  const d = join(resDir, dir)
+  await mkdir(d, { recursive: true })
+  await sharp(svg({ size: px, chev: chevron('#FFFFFF', 1.25) })).png().toFile(join(d, 'ic_stat_quuki.png'))
+  console.log('generated ' + dir + '/ic_stat_quuki.png')
+}
+
 console.log('done')
