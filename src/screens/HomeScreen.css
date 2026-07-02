@@ -22,6 +22,9 @@
   gap: 2px;
 }
 .home__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   font-family: var(--font-display);
   font-weight: var(--fw-bold);
   font-size: 11px;
@@ -102,6 +105,11 @@
   font-weight: var(--fw-medium);
   font-size: var(--fs-body);
   color: rgba(255, 255, 255, 0.9);
+}
+/* 超過カウントアップ時は中央の数字・単位を赤系統に（overdue ピル/リングと統一） */
+.home__ring-num--over,
+.home__ring-unit--over {
+  color: var(--danger);
 }
 .home__hero-pill {
   display: inline-flex;

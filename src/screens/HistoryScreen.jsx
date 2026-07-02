@@ -192,7 +192,7 @@ export default function HistoryScreen() {
               onChange={(e) => setEditValue(e.target.value)}
             />
           </div>
-          <Button variant="primary" size="md" block iconLeft={<Icon name="check" size={18} />} onClick={saveEdit}>
+          <Button variant="warning" size="md" block iconLeft={<Icon name="check" size={18} />} onClick={saveEdit}>
             保存
           </Button>
           <Button variant="ghost" size="md" block iconLeft={<Icon name="trash-2" size={18} />} onClick={deleteEntry}>
