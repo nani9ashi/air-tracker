@@ -11,6 +11,7 @@ import { useStore } from '../store/useStore.js'
 import {
   getActiveBike,
   getActiveAirItem,
+  getLimits,
   pump,
   setInterval as setCycle,
   setTheme,
@@ -45,7 +46,7 @@ export default function HomeScreen({ onTab }) {
   const state = useStore()
   const bike = getActiveBike(state)
   const item = getActiveAirItem(state)
-  const isPremium = state.settings.isPremium
+  const limits = getLimits(state)
   const isLight = resolveTheme(state.settings.theme) === 'light'
 
   const [sheetOpen, setSheetOpen] = useState(false)
@@ -75,7 +76,7 @@ export default function HomeScreen({ onTab }) {
     setCycle(d)
   }
   const onCustomClick = () => {
-    if (!isPremium) {
+    if (!limits.customCycle) {
       setShowPremium((v) => !v)
       return
     }
@@ -185,16 +186,16 @@ export default function HomeScreen({ onTab }) {
             ))}
             <Chip
               selected={isCustom}
-              locked={!isPremium}
+              locked={!limits.customCycle}
               onClick={onCustomClick}
-              aria-label={isPremium ? 'カスタムサイクル' : 'カスタムサイクル（プレミアムで解放）'}
+              aria-label={limits.customCycle ? 'カスタムサイクル' : 'カスタムサイクル（Proで解放）'}
             >
               {isCustom ? `${item.intervalDays}日` : 'カスタム'}
             </Chip>
           </div>
           {showPremium && (
             <p className="home__premium" role="status">
-              <Icon name="lock" size={14} /> カスタムサイクルはプレミアムで解放されます
+              <Icon name="lock" size={14} /> カスタムサイクルはProで解放されます
             </p>
           )}
         </section>
