@@ -1,7 +1,7 @@
 {
   "name": "quuki",
   "private": true,
-  "version": "2.0.0",
+  "version": "2.0.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "cap:sync": "npm run build:native && cap sync android",
-    "cap:open": "cap open android"
+    "cap:open": "cap open android",
+    "assets:gen": "node scripts/gen-native-assets.mjs && capacitor-assets generate --android --splashBackgroundColor \"#07110F\" --splashBackgroundColorDark \"#07110F\""
   },
   "dependencies": {
     "@capacitor/android": "^8.4.1",
@@ -20,6 +21,7 @@
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
     "@capacitor/cli": "^8.4.1",
     "@vitejs/plugin-react": "^4.3.4",
     "jsdom": "^25.0.1",
