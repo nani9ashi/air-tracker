@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import GlassCard from '../components/GlassCard.jsx'
 import StatTile from '../components/StatTile.jsx'
 import Heatmap from '../components/Heatmap.jsx'
@@ -6,6 +7,7 @@ import { useStore } from '../store/useStore.js'
 import { getActiveAirItem, getLimits } from '../store/store.js'
 import { averageIntervalDays, currentStreak, totalCount, cycleTrend, sortedHistory } from '../lib/stats.js'
 import { daysBetween } from '../lib/date.js'
+import { track, EV } from '../lib/analytics.js'
 import './StatsScreen.css'
 
 export default function StatsScreen() {
@@ -25,6 +27,13 @@ export default function StatsScreen() {
     const days = daysBetween(s[0].date, new Date())
     return Math.max(18, Math.min(53, Math.ceil(days / 7) + 1))
   })()
+
+  // 全期間ヒートがロックされている無料ユーザーが統計を開いた＝ペイウォール到達（画面表示ごと1回）。
+  const heatmapLocked = limits.heatmapWeeks !== 'auto' && total > 0
+  useEffect(() => {
+    if (heatmapLocked) track(EV.PAYWALL, { source: 'heatmap' })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <div className="stats">

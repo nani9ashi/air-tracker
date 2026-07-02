@@ -17,6 +17,7 @@ import {
   APP_VERSION,
 } from '../store/store.js'
 import { toDateInputValue } from '../lib/date.js'
+import { track, EV } from '../lib/analytics.js'
 import './SettingsScreen.css'
 
 const THEMES = [
@@ -59,6 +60,7 @@ export default function SettingsScreen() {
 
   const handleAddBike = () => {
     if (addLocked) {
+      track(EV.PAYWALL, { source: 'settings_add_bike' })
       showToast('複数の自転車はPremiumで解放されます')
       return
     }
@@ -78,6 +80,7 @@ export default function SettingsScreen() {
 
   const handleExport = () => {
     if (backupLocked) {
+      track(EV.PAYWALL, { source: 'backup_export' })
       showToast('バックアップはProで解放されます')
       return
     }
@@ -213,7 +216,10 @@ export default function SettingsScreen() {
               <button
                 type="button"
                 className="sheet-opt settings__btn settings__btn--center"
-                onClick={() => showToast('バックアップはProで解放されます')}
+                onClick={() => {
+                  track(EV.PAYWALL, { source: 'backup_import' })
+                  showToast('バックアップはProで解放されます')
+                }}
                 aria-label="読み込み（Proで解放）"
               >
                 <Icon name="lock" size={18} />

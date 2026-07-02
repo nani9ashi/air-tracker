@@ -150,7 +150,16 @@
 
 ---
 
-## 9. 関連ファイル
+## 9. 計測（アナリティクス・v1.7）
+
+- **方式**: [GoatCounter](https://www.goatcounter.com/)（無料ホスト・**cookieなし・個人情報/PIIなし**）。実装は `src/lib/analytics.js`。
+- **送信条件**: **本番ビルドかつ `VITE_GOATCOUNTER_CODE` 設定時のみ**送信。未設定・開発時は送らず console に出すだけ（no-op）。サイトコードは `.env.local`（gitignore 済み）で後差し込み（`.env.example` 参照）。
+- **収集イベント（最小）**: `pageview`（訪問）/ `pwa_install`（＋`pwa_install_prompt`）/ `reset`（空気入れた）/ `paywall_view:<source>`（ロック機能への到達：custom_interval・history・heatmap・add_bike・settings_add_bike・backup_export・backup_import）/ `purchase`（1bで配線予定）。
+- **プライバシー**: 端末識別子・広告ID・位置情報などは**収集しない**。Play の **Data safety フォーム（1a-4）** では「アプリのアクティビティ（アナリティクス）」を正直に申告し、本節と齟齬がないようにする。
+
+---
+
+## 10. 関連ファイル
 
 - `v1実装手順書.md` — Claude Code用のフェーズ別ビルド仕様（受け入れ基準付き）。
 - `design-reference.css` — CADENCEデザイントークン（ダーク既定＋ライトテーマ）。
