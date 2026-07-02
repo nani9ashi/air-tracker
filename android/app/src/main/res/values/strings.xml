@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">QUUKI</string>
+    <string name="title_activity_main">QUUKI</string>
+    <string name="package_name">com.quuki.app</string>
+    <string name="custom_url_scheme">com.quuki.app</string>
+</resources>
