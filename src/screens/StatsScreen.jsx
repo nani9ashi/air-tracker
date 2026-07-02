@@ -3,7 +3,7 @@ import StatTile from '../components/StatTile.jsx'
 import Heatmap from '../components/Heatmap.jsx'
 import Icon from '../components/Icon.jsx'
 import { useStore } from '../store/useStore.js'
-import { getActiveAirItem, FREE_LIMITS } from '../store/store.js'
+import { getActiveAirItem, getLimits } from '../store/store.js'
 import { averageIntervalDays, currentStreak, totalCount, cycleTrend, sortedHistory } from '../lib/stats.js'
 import { daysBetween } from '../lib/date.js'
 import './StatsScreen.css'
@@ -15,11 +15,11 @@ export default function StatsScreen() {
   const streak = currentStreak(item.history, item.intervalDays)
   const total = totalCount(item.history)
   const trend = cycleTrend(item.history, item.intervalDays)
-  const isPremium = state.settings.isPremium
+  const limits = getLimits(state)
 
-  // 無料は直近1ヶ月（約5週）。有料は最古の記録〜現在をカバー（18〜53週）。
+  // 無料は直近1ヶ月（約5週）。Pro/Premium は最古の記録〜現在をカバー（18〜53週）。
   const heatmapWeeks = (() => {
-    if (!isPremium) return FREE_LIMITS.heatmapWeeks
+    if (limits.heatmapWeeks !== 'auto') return limits.heatmapWeeks
     const s = sortedHistory(item.history)
     if (!s.length) return 18
     const days = daysBetween(s[0].date, new Date())
@@ -45,7 +45,7 @@ export default function StatsScreen() {
           <div className="stats__card-head">
             <span className="stats__card-title">記録ヒートマップ</span>
             <span className="stats__card-sub">
-              記録{total}件 · {isPremium ? '全期間' : '直近1ヶ月'}
+              記録{total}件 · {limits.heatmapWeeks === 'auto' ? '全期間' : '直近1ヶ月'}
             </span>
           </div>
           {total === 0 ? (
@@ -56,9 +56,9 @@ export default function StatsScreen() {
           ) : (
             <>
               <Heatmap history={item.history} intervalDays={item.intervalDays} weeks={heatmapWeeks} />
-              {!isPremium && (
+              {limits.heatmapWeeks !== 'auto' && (
                 <p className="stats__premium" role="status">
-                  <Icon name="lock" size={14} /> 無料版は直近1ヶ月（プレミアムで全期間）
+                  <Icon name="lock" size={14} /> 無料版は直近1ヶ月（Proで全期間）
                 </p>
               )}
             </>

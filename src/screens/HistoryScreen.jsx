@@ -5,7 +5,7 @@ import Sheet from '../components/Sheet.jsx'
 import Button from '../components/Button.jsx'
 import Icon from '../components/Icon.jsx'
 import { useStore } from '../store/useStore.js'
-import { getActiveAirItem, editHistory, removeHistory, FREE_LIMITS } from '../store/store.js'
+import { getActiveAirItem, editHistory, removeHistory, getLimits } from '../store/store.js'
 import { averageIntervalDays, totalCount, sortedHistory } from '../lib/stats.js'
 import { formatDateJP, daysBetween, toDateInputValue, dateInputToISO } from '../lib/date.js'
 import './HistoryScreen.css'
@@ -17,10 +17,11 @@ export default function HistoryScreen() {
   const item = getActiveAirItem(state)
   const total = totalCount(item.history)
   const avg = averageIntervalDays(item.history)
-  const isPremium = state.settings.isPremium
+  const limits = getLimits(state)
 
   const [editing, setEditing] = useState(null)
   const [editValue, setEditValue] = useState('')
+  const [showUpsell, setShowUpsell] = useState(false)
 
   const rows = useMemo(() => {
     const asc = sortedHistory(item.history)
@@ -40,6 +41,13 @@ export default function HistoryScreen() {
       })
       .reverse()
   }, [item.history])
+
+  // 無料は直近 limits.history 件を通常表示、それ以降は削除せずロック/ぼかし。
+  // Pro/Premium は history:Infinity なので全件通常表示。
+  const visibleCount = limits.history === Infinity ? rows.length : limits.history
+  const shown = rows.slice(0, visibleCount)
+  const locked = rows.slice(visibleCount)
+  const TEASER = 2
 
   const histMsg =
     total >= 2
@@ -89,7 +97,7 @@ export default function HistoryScreen() {
             </div>
           ) : (
             <div className="history__list">
-              {(isPremium ? rows : rows.slice(0, FREE_LIMITS.history)).map((row) => (
+              {shown.map((row) => (
                 <ListRow
                   key={row.id}
                   role="button"
@@ -122,13 +130,49 @@ export default function HistoryScreen() {
                   trailing={<Icon name="more-vertical" size={18} style={{ color: 'var(--text-muted)' }} />}
                 />
               ))}
+
+              {/* ロック行: 削除せずぼかしティザーで見せる（4件目以降）。非操作。 */}
+              {locked.slice(0, TEASER).map((row) => (
+                <ListRow
+                  key={row.id}
+                  className="history__row history__row--locked"
+                  aria-hidden="true"
+                  tabIndex={-1}
+                  thumb={
+                    <span className="history__thumb" aria-hidden="true">
+                      <Icon name="check" size={18} style={{ color: 'var(--text-accent)' }} />
+                    </span>
+                  }
+                  title={
+                    <>
+                      {row.dateLabel}{' '}
+                      <span className="history__wd">{row.weekday}</span>
+                    </>
+                  }
+                  subtitle={`${row.rel} ・ ${row.interval}`}
+                  trailing={<Icon name="lock" size={18} style={{ color: 'var(--text-muted)' }} />}
+                />
+              ))}
             </div>
           )}
 
-          {!isPremium && total > 0 && (
-            <p className="history__premium" role="status">
-              <Icon name="lock" size={14} /> 無料版は直近{FREE_LIMITS.history}件まで保存（プレミアムで全件）
-            </p>
+          {locked.length > 0 && (
+            <>
+              <button
+                type="button"
+                className="history__lock-row"
+                onClick={() => setShowUpsell((v) => !v)}
+                aria-label={`残り${locked.length}件はProで全件表示`}
+              >
+                {/* TODO(1b-2): ここを実ペイウォールへ差し替える */}
+                <Icon name="lock" size={16} /> 残り{locked.length}件はProで全件表示できます
+              </button>
+              {showUpsell && (
+                <p className="history__premium" role="status">
+                  <Icon name="lock" size={14} /> Proにアップグレードすると全ての履歴を表示できます
+                </p>
+              )}
+            </>
           )}
         </GlassCard>
       </main>

@@ -59,6 +59,37 @@
   background: var(--glass-fill-light);
 }
 
+/* ロック行: 削除せずぼかしティザー表示（無料の4件目以降）。非操作。 */
+.history__row--locked {
+  cursor: default;
+  filter: blur(5px);
+  opacity: 0.55;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* 残数 CTA（ペイウォール導線の入口）。.history__premium と同じ energy 系の見た目。 */
+.history__lock-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  margin-top: var(--space-3);
+  font-family: var(--font-jp);
+  font-size: var(--fs-body-sm);
+  color: var(--text-secondary);
+  background: var(--energy-soft);
+  border: 1px solid var(--energy);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  cursor: pointer;
+  transition: filter var(--dur-fast) var(--ease-out);
+}
+.history__lock-row:hover {
+  filter: brightness(1.08);
+}
+
 .history__thumb {
   width: 38px;
   height: 38px;

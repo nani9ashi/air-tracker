@@ -6,16 +6,33 @@
 
 const STORAGE_KEY = 'air-tracker:state'
 const LEGACY_KEY = 'airTracker' // 旧バニラ版のキー（あれば取り込む）
-const VERSION = 2
+const VERSION = 3
 const DEFAULT_BIKE_NAME = 'マイバイク'
 const PRESET_INTERVALS = [7, 14, 21, 28]
 
-// 無料プランの上限（プレミアムで解放）。README §7 準拠。
-// history は「保存上限」（超過分は古いものから破壊的に削除）。
-export const FREE_LIMITS = { bikes: 1, history: 3, heatmapWeeks: 5 }
+// プラン別の上限/解放。README §8 準拠。
+// history: 無料で通常表示する直近件数（超過分は削除せずロック/ぼかし表示）。Infinity=全件。
+// heatmapWeeks: 数値=固定週数 / 'auto'=最古の記録〜現在。bikes: 追加可能な最大台数。
+// 注: Infinity はコード上のみ。localStorage には settings.plan（文字列）だけが載る。
+export const PLAN_LIMITS = {
+  free: { bikes: 1, history: 3, heatmapWeeks: 5, customCycle: false, backup: false },
+  pro: { bikes: 1, history: Infinity, heatmapWeeks: 'auto', customCycle: true, backup: true },
+  premium: { bikes: Infinity, history: Infinity, heatmapWeeks: 'auto', customCycle: true, backup: true },
+}
+export const PLANS = ['free', 'pro', 'premium']
+
+// プランを検証・正規化。未知値は 'free'。
+export function normalizePlan(plan) {
+  return PLANS.includes(plan) ? plan : 'free'
+}
+
+// state から現在プランの上限を引く。selector 省略でグローバル state。
+export function getLimits(s = state) {
+  return PLAN_LIMITS[normalizePlan(s?.settings?.plan)]
+}
 
 // アプリ表示バージョン（設定フッター等で使用）。
-export const APP_VERSION = '1.4'
+export const APP_VERSION = '1.5'
 
 // 履歴エントリ用の安定 ID。
 let __idSeq = 0
@@ -48,7 +65,7 @@ function recomputeLastReset(item) {
   item.lastReset = item.history.map((h) => h.date).sort().at(-1)
 }
 
-function makeDefaultState() {
+export function makeDefaultState() {
   return {
     version: VERSION,
     bikes: [
@@ -67,24 +84,24 @@ function makeDefaultState() {
     ],
     settings: {
       theme: 'auto', // 'auto' | 'dark' | 'light'
-      isPremium: false,
+      plan: 'free', // 'free' | 'pro' | 'premium'（README §8）
       activeBikeId: 'bike-1',
     },
   }
 }
 
-// 旧データ → v2 へ正規化。
-// - 既に version:2 + bikes 配列なら（足りないフィールドだけ補って）そのまま。
-// - 旧フラット shape { lastPump, intervalDays, history } を検出したら移植。
+// 旧データ → v3 へ正規化。
+// - 既に v3（または v2）+ bikes 配列なら normalize に通す（欠損補完＋isPremium→plan）。
+// - 旧フラット shape { lastPump, intervalDays, history } を検出したら移植（plan は free）。
 // - それ以外は初期state。
-function migrate(raw) {
+export function migrate(raw) {
   if (!raw || typeof raw !== 'object') return makeDefaultState()
 
-  if (raw.version === VERSION && Array.isArray(raw.bikes)) {
+  if ((raw.version === VERSION || raw.version === 2) && Array.isArray(raw.bikes)) {
     return normalize(raw)
   }
 
-  // v1 フラット shape
+  // v1 フラット shape（プレミアム概念なし → plan は free のまま）
   if ('lastPump' in raw || 'intervalDays' in raw || 'history' in raw) {
     const def = makeDefaultState()
     const item = def.bikes[0].items[0]
@@ -97,10 +114,16 @@ function migrate(raw) {
   return makeDefaultState()
 }
 
-// 既存 v2 データに欠損フィールドがあっても壊れないよう補完。
-function normalize(state) {
+// 既存 v2/v3 データに欠損フィールドがあっても壊れないよう補完し、v3 へ揃える。
+// isPremium(旧v2)→plan 変換もここで行い、import と再正規化で共有（冪等）。
+export function normalize(state) {
   const def = makeDefaultState()
-  const settings = { ...def.settings, ...(state.settings || {}) }
+  const src = state.settings || {}
+  // 旧 isPremium -> plan。このアプリの有料段は Pro（true='pro' / false='free'）。
+  // plan があればそれを優先し検証。実ユーザー0のため退行リスクは無い。
+  const plan = 'plan' in src ? normalizePlan(src.plan) : src.isPremium ? 'pro' : 'free'
+  const settings = { ...def.settings, ...src, plan }
+  delete settings.isPremium
   const bikes =
     Array.isArray(state.bikes) && state.bikes.length
       ? state.bikes.map((b) => ({
@@ -152,6 +175,12 @@ function persist() {
 // 初回起動時、新キーへ確実に書き出す（旧キー取り込み or 初期生成の確定）。
 persist()
 
+// 開発時のみ: コンソールからプランを切り替え/確認できるように公開（本番ビルドでは消える）。
+if (import.meta.env.DEV && typeof window !== 'undefined') {
+  window.setPlan = setPlan
+  window.getPlan = () => getState().settings.plan
+}
+
 function emit() {
   for (const l of listeners) l()
 }
@@ -188,11 +217,7 @@ export function pump(dateISO = new Date().toISOString()) {
   const next = structuredCloneState(state)
   const item = getActiveAirItem(next)
   item.history.push({ id: makeId(), date: dateISO })
-  // 無料は保存上限を超えたら古い順に破壊的削除。
-  if (!next.settings.isPremium && item.history.length > FREE_LIMITS.history) {
-    item.history.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
-    item.history = item.history.slice(-FREE_LIMITS.history)
-  }
+  // v1.5: 全プランで履歴は削除しない（無料は 4件目以降をロック/ぼかし表示）。
   recomputeLastReset(item)
   commit(next)
 }
@@ -275,9 +300,10 @@ export function setTheme(mode) {
   commit(next)
 }
 
-export function setPremium(isPremium) {
+// プランを設定。README の3値のみ（未知値は 'free' に coerce）。
+export function setPlan(plan) {
   const next = structuredCloneState(state)
-  next.settings.isPremium = !!isPremium
+  next.settings.plan = normalizePlan(plan)
   commit(next)
 }
 

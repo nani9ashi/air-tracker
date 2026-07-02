@@ -5,13 +5,14 @@ import Toast from '../components/Toast.jsx'
 import { useStore } from '../store/useStore.js'
 import {
   getActiveBike,
+  getLimits,
   setBikeName,
   setTheme,
   exportJSON,
   importJSON,
   addBike,
   removeBike,
-  FREE_LIMITS,
+  setPlan,
   APP_VERSION,
 } from '../store/store.js'
 import { toDateInputValue } from '../lib/date.js'
@@ -28,13 +29,15 @@ export default function SettingsScreen() {
   const bike = getActiveBike(state)
   const theme = state.settings.theme
   const canDelete = state.bikes.length > 1
-  const addLocked = !state.settings.isPremium && state.bikes.length >= FREE_LIMITS.bikes
-  const backupLocked = !state.settings.isPremium
+  const limits = getLimits(state)
+  const addLocked = state.bikes.length >= limits.bikes
+  const backupLocked = !limits.backup
 
   const [name, setName] = useState(bike.name)
   const [toast, setToast] = useState(null)
   const fileRef = useRef(null)
   const toastTimer = useRef(0)
+  const planTaps = useRef(0)
 
   useEffect(() => {
     setName(bike.name)
@@ -55,7 +58,7 @@ export default function SettingsScreen() {
 
   const handleAddBike = () => {
     if (addLocked) {
-      showToast('複数の自転車はプレミアムで解放されます')
+      showToast('複数の自転車はPremiumで解放されます')
       return
     }
     const n = window.prompt('追加する自転車の名前', '')
@@ -74,7 +77,7 @@ export default function SettingsScreen() {
 
   const handleExport = () => {
     if (backupLocked) {
-      showToast('バックアップはプレミアムで解放されます')
+      showToast('バックアップはProで解放されます')
       return
     }
     const blob = new Blob([exportJSON()], { type: 'application/json' })
@@ -99,6 +102,19 @@ export default function SettingsScreen() {
     }
     reader.onerror = () => showToast('ファイルを読み取れませんでした')
     reader.readAsText(file)
+  }
+
+  // 開発時のみ: 版フッターを5回タップで free→pro→premium を循環（本番ビルドでは無効）。
+  const bumpPlan = () => {
+    if (!import.meta.env.DEV) return
+    planTaps.current += 1
+    if (planTaps.current >= 5) {
+      planTaps.current = 0
+      const order = ['free', 'pro', 'premium']
+      const next = order[(order.indexOf(state.settings.plan) + 1) % order.length]
+      setPlan(next)
+      showToast(`開発: プラン = ${next}`)
+    }
   }
 
   return (
@@ -133,14 +149,12 @@ export default function SettingsScreen() {
                 type="button"
                 className="sheet-opt settings__btn"
                 onClick={handleAddBike}
-                aria-label={addLocked ? '自転車を追加（プレミアムで解放）' : '自転車を追加'}
+                aria-label={addLocked ? '自転車を追加（Premiumで解放）' : '自転車を追加'}
               >
                 <span className="sheet-opt__icon">
                   <Icon name={addLocked ? 'lock' : 'plus-circle'} size={20} />
                 </span>
-                <span className="sheet-opt__label">
-                  {addLocked ? '追加（プレミアム）' : '自転車を追加'}
-                </span>
+                <span className="sheet-opt__label">自転車を追加</span>
               </button>
               <button
                 type="button"
@@ -189,20 +203,20 @@ export default function SettingsScreen() {
               type="button"
               className="sheet-opt settings__btn settings__btn--center"
               onClick={handleExport}
-              aria-label={backupLocked ? '書き出し（プレミアムで解放）' : '書き出し'}
+              aria-label={backupLocked ? '書き出し（Proで解放）' : '書き出し'}
             >
               <Icon name={backupLocked ? 'lock' : 'download'} size={18} />
-              {backupLocked ? '書き出し（プレミアム）' : '書き出し'}
+              書き出し
             </button>
             {backupLocked ? (
               <button
                 type="button"
                 className="sheet-opt settings__btn settings__btn--center"
-                onClick={() => showToast('バックアップはプレミアムで解放されます')}
-                aria-label="読み込み（プレミアムで解放）"
+                onClick={() => showToast('バックアップはProで解放されます')}
+                aria-label="読み込み（Proで解放）"
               >
                 <Icon name="lock" size={18} />
-                読み込み（プレミアム）
+                読み込み
               </button>
             ) : (
               <label className="sheet-opt settings__btn settings__btn--center">
@@ -221,13 +235,13 @@ export default function SettingsScreen() {
           </div>
           <p className="settings__hint">
             {backupLocked
-              ? 'バックアップ（書き出し/読み込み）はプレミアムで解放されます。'
+              ? 'バックアップ（書き出し/読み込み）はProで解放されます。'
               : 'インポートは現在のデータを置き換えます。'}
           </p>
         </section>
 
         <footer className="settings__footer">
-          <p className="settings__version">Air Tracker v{APP_VERSION}</p>
+          <p className="settings__version" onClick={bumpPlan}>Air Tracker v{APP_VERSION}</p>
         </footer>
       </main>
 
