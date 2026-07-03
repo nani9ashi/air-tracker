@@ -12,7 +12,7 @@ describe('planNotifications', () => {
     expect(out[0].at.getDate()).toBe(14) // 予定日6/15の前日
     expect(out[0].at.getHours()).toBe(REMINDER_HOUR)
     expect(out[0].body).toContain('テスト車')
-    expect(out[0].body).toContain('14日サイクル')
+    expect(out[0].body).toContain('14日間隔')
     expect(out[1].at.getDate()).toBe(17) // 予定日+2
   })
 
