@@ -72,7 +72,9 @@ export async function syncActiveReminder({ userAction = false } = {}) {
         id: idForKind(bike.id, n.kind),
         title: n.title,
         body: n.body,
-        schedule: { at: n.at }, // allowWhileIdle 指定なし＝exact に依存しない
+        // allowWhileIdle: true → プラグインは setAndAllowWhileIdle(RTC_WAKEUP) を使い、
+        // Doze 中でも端末を起こして配信する。inexact のまま＝SCHEDULE_EXACT_ALARM は不要（審査リスクなし）。
+        schedule: { at: n.at, allowWhileIdle: true },
         smallIcon: 'ic_stat_quuki',
       })),
     })
