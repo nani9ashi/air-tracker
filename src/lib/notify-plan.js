@@ -53,15 +53,15 @@ export function planNotifications(bikeName, lastReset, intervalDays, { userActio
     out.push({
       kind: 'primary',
       at: primaryAt,
-      title: 'そろそろ空気入れの時期です',
-      body: `「${name}」のタイヤに空気を入れましょう（${days}日サイクル）`,
+      title: '明日は空気入れの日です',
+      body: `「${name}」のタイヤに空気を入れましょう（${days}日間隔）`,
     })
     if (renudgeAt.getTime() > now) {
       out.push({
         kind: 'renudge',
         at: renudgeAt,
-        title: `「${name}」の空気入れがまだのようです`,
-        body: `予定日から${RENUDGE_DAYS}日。数分で済みます。`,
+        title: '空気入れはお済みですか？',
+        body: `「${name}」の予定日から${RENUDGE_DAYS}日が経ちました`,
       })
     }
   } else if (userAction) {
@@ -69,16 +69,16 @@ export function planNotifications(bikeName, lastReset, intervalDays, { userActio
     out.push({
       kind: 'catchup',
       at: nextHour(new Date(now), REMINDER_HOUR),
-      title: 'そろそろ空気入れの時期です',
-      body: `「${name}」— 予定日を過ぎています。数分で済みます。`,
+      title: '空気入れの時期になりました',
+      body: `間隔の変更により、「${name}」の予定日を過ぎています`,
     })
   } else if (renudgeAt.getTime() > now) {
     // 起動時の再同期: 予定日は過ぎているが念押し(予定日+2)がまだ未来なら再登録。
     out.push({
       kind: 'renudge',
       at: renudgeAt,
-      title: `「${name}」の空気入れがまだのようです`,
-      body: `予定日から${RENUDGE_DAYS}日。数分で済みます。`,
+      title: '空気入れはお済みですか？',
+      body: `「${name}」の予定日から${RENUDGE_DAYS}日が経ちました`,
     })
   }
   return out
