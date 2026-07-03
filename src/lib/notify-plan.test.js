@@ -6,14 +6,14 @@ const lastReset = new Date(2026, 5, 1, 12).toISOString()
 const at = (y, m, d, h) => new Date(y, m - 1, d, h).getTime()
 
 describe('planNotifications', () => {
-  it('予定日前: primary＋renudge の2本（20時）', () => {
+  it('予定日前: primary(前夜=予定日-1)＋renudge の2本（20時）', () => {
     const out = planNotifications('テスト車', lastReset, 14, { userAction: false, now: at(2026, 6, 10, 10) })
     expect(out.map((n) => n.kind)).toEqual(['primary', 'renudge'])
-    expect(out[0].at.getDate()).toBe(15)
+    expect(out[0].at.getDate()).toBe(14) // 予定日6/15の前日
     expect(out[0].at.getHours()).toBe(REMINDER_HOUR)
     expect(out[0].body).toContain('テスト車')
     expect(out[0].body).toContain('14日サイクル')
-    expect(out[1].at.getDate()).toBe(17)
+    expect(out[1].at.getDate()).toBe(17) // 予定日+2
   })
 
   it('超過＋ユーザー操作: catchup 1本（直近20時）', () => {
@@ -45,14 +45,19 @@ describe('planNotifications', () => {
 })
 
 describe('reminderStatus', () => {
-  it('予定日前は scheduled（20時）', () => {
+  it('前夜リマインダー前は scheduled（予定日-1の20時）', () => {
     const r = reminderStatus(lastReset, 14, new Date(2026, 5, 10, 10))
     expect(r.state).toBe('scheduled')
-    expect(r.at.getDate()).toBe(15)
+    expect(r.at.getDate()).toBe(14) // 予定日6/15の前日
     expect(r.at.getHours()).toBe(20)
   })
-  it('予定日20時を過ぎたら overdue', () => {
-    expect(reminderStatus(lastReset, 14, new Date(2026, 5, 16, 10)).state).toBe('overdue')
+  it('前夜を過ぎたら次回=念押し(予定日+2)を返す', () => {
+    const r = reminderStatus(lastReset, 14, new Date(2026, 5, 16, 10))
+    expect(r.state).toBe('scheduled')
+    expect(r.at.getDate()).toBe(17)
+  })
+  it('念押し(予定日+2)も過ぎたら overdue', () => {
+    expect(reminderStatus(lastReset, 14, new Date(2026, 5, 20, 10)).state).toBe('overdue')
   })
   it('未記録は none', () => {
     expect(reminderStatus(null, 14, new Date(2026, 5, 10, 10)).state).toBe('none')

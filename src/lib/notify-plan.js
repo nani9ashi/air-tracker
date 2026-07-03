@@ -5,7 +5,8 @@
 // ============================================================
 import { computeNextDueDate } from './date.js'
 
-export const REMINDER_HOUR = 20 // 前夜通知（「明日の準備に」）
+export const REMINDER_HOUR = 20 // 20時に通知
+export const LEAD_DAYS = 1 // 予定日の1日前＝前夜に予告（どの間隔でも共通）
 export const RENUDGE_DAYS = 2 // 放置時の念押し（最大1回）
 
 // その日の h:00(ローカル) を返す（元は破壊しない）。
@@ -25,13 +26,16 @@ function nextHour(now, h) {
   return today.getTime() > now.getTime() ? today : addDays(today, 1)
 }
 
-// インライン表示用。次回リマインダーの状態を返す。
+// インライン表示用。「次に実際に出る通知」の状態を返す（前夜→念押し→超過）。
 export function reminderStatus(lastReset, intervalDays, now = new Date()) {
   const due = computeNextDueDate(lastReset, intervalDays)
   if (!due) return { at: null, state: 'none' }
-  const at = atHour(due, REMINDER_HOUR)
-  if (at.getTime() > now.getTime()) return { at, state: 'scheduled' }
-  return { at: null, state: 'overdue' }
+  const t = now.getTime()
+  const primaryAt = atHour(addDays(due, -LEAD_DAYS), REMINDER_HOUR)
+  if (primaryAt.getTime() > t) return { at: primaryAt, state: 'scheduled' } // 前夜リマインダー
+  const renudgeAt = atHour(addDays(due, RENUDGE_DAYS), REMINDER_HOUR)
+  if (renudgeAt.getTime() > t) return { at: renudgeAt, state: 'scheduled' } // primary後は念押しが次
+  return { at: null, state: 'overdue' } // 予定日+2も過ぎたら超過
 }
 
 // スケジュールすべき通知の記述子配列を返す（kind/at/title/body）。
@@ -41,7 +45,7 @@ export function planNotifications(bikeName, lastReset, intervalDays, { userActio
   if (!due) return []
   const name = bikeName || 'マイバイク'
   const days = Math.round(Number(intervalDays)) || intervalDays
-  const primaryAt = atHour(due, REMINDER_HOUR)
+  const primaryAt = atHour(addDays(due, -LEAD_DAYS), REMINDER_HOUR) // 予定日の前日20時
   const renudgeAt = atHour(addDays(due, RENUDGE_DAYS), REMINDER_HOUR)
   const out = []
 
