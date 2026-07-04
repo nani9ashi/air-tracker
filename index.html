@@ -17,8 +17,17 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="QUUKI" />
 
-    <!-- フォントは自己ホスト（@fontsource, src/main.jsx で読込）。CDN 依存なし＝オフライン/初回起動でも崩れない。 -->
-    <!-- 起動スプラッシュ（React マウント前・バンドル CSS 読込前）用に Saira 800 を先読み。 -->
+    <!-- フォント: 本文=Noto Sans JP / 数字=Saira・Saira Condensed -->
+    <!-- Web は Google Fonts CDN から読込（SW runtimeCaching でオフライン対応, vite.config.js）。 -->
+    <!-- ネイティブ（Capacitor）は @fontsource を同梱（src/fonts-native.js）。この link は空振りするが無害。 -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&family=Saira:wght@600;700;800&family=Saira+Condensed:wght@600;700&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- 起動スプラッシュ（React マウント前・バンドル CSS 読込前）用に Saira 800 をローカル先読み。 -->
     <link rel="preload" href="./fonts/saira-800.woff2" as="font" type="font/woff2" crossorigin />
     <style>
       @font-face {
