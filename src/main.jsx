@@ -2,17 +2,12 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
 import { initAnalytics, track, EV } from './lib/analytics.js'
-// フォントは自己ホスト（@fontsource）。ネイティブ/オフラインでも確実に読み込む（CDN 依存を撤去）。
-// 本文=Noto Sans JP / ワードマーク・ラベル=Saira / 数値=Saira Condensed
-import '@fontsource/noto-sans-jp/400.css'
-import '@fontsource/noto-sans-jp/500.css'
-import '@fontsource/noto-sans-jp/700.css'
-import '@fontsource/noto-sans-jp/900.css'
-import '@fontsource/saira/600.css'
-import '@fontsource/saira/700.css'
-import '@fontsource/saira/800.css'
-import '@fontsource/saira-condensed/600.css'
-import '@fontsource/saira-condensed/700.css'
+// フォント読込はビルドモードで分岐する:
+//  - ネイティブ（capacitor）: SW/CDN が無いためフォントを同梱（fonts-native.js）。
+//  - Web: index.html の Google Fonts CDN + SW runtimeCaching（vite.config.js）で解決。
+// import.meta.env.MODE はビルド時に静的置換されるため、Web ビルドでは下記 import は
+// ツリーシェイクされ、フォント資産は dist に出力されない（デプロイ肥大・PWA プリキャッシュ肥大を回避）。
+if (import.meta.env.MODE === 'capacitor') import('./fonts-native.js')
 import './styles/tokens.css'
 import './styles/global.css'
 
