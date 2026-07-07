@@ -9,6 +9,8 @@
   display: flex;
   align-items: center;
   padding: var(--space-3) 0 var(--space-4);
+  /* ステータスバー(edge-to-edge)食い込み回避 */
+  padding-top: calc(var(--space-3) + env(safe-area-inset-top, 0));
 }
 
 .settings__main {

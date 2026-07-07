@@ -6,6 +6,11 @@
     "LocalNotifications": {
       "smallIcon": "ic_stat_quuki",
       "iconColor": "#15C2C2"
+    },
+    "StatusBar": {
+      "overlaysWebView": true,
+      "style": "DARK",
+      "backgroundColor": "#07110F"
     }
   }
 }
