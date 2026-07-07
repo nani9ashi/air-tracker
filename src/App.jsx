@@ -7,7 +7,8 @@ import BottomNav from './components/BottomNav.jsx'
 import Icon from './components/Icon.jsx'
 import PreviewScreen from './screens/PreviewScreen.jsx'
 import { useStore } from './store/useStore.js'
-import { applyTheme, watchSystemTheme } from './lib/theme.js'
+import { applyTheme, resolveTheme, watchSystemTheme } from './lib/theme.js'
+import { applyStatusBar } from './lib/statusbar.js'
 import { syncActiveReminder } from './lib/notifications.js'
 
 function useHash() {
@@ -25,7 +26,11 @@ function useApplyTheme() {
   const theme = useStore((s) => s.settings.theme)
   useEffect(() => {
     applyTheme(theme)
-    return watchSystemTheme(theme, () => applyTheme(theme))
+    applyStatusBar(resolveTheme(theme)) // ネイティブのステータスバーもテーマに追従（web は no-op）
+    return watchSystemTheme(theme, () => {
+      applyTheme(theme)
+      applyStatusBar(resolveTheme(theme))
+    })
   }, [theme])
 }
 

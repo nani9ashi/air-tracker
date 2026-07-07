@@ -1,7 +1,7 @@
 {
   "name": "quuki",
   "private": true,
-  "version": "2.1.6",
+  "version": "2.1.7",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -17,6 +17,7 @@
     "@capacitor/android": "^8.4.1",
     "@capacitor/core": "^8.4.1",
     "@capacitor/local-notifications": "^8.2.0",
+    "@capacitor/status-bar": "^8.0.2",
     "@fontsource/noto-sans-jp": "^5.2.9",
     "@fontsource/saira": "^5.2.11",
     "@fontsource/saira-condensed": "^5.2.8",
