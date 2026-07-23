@@ -149,15 +149,42 @@ describe('ST-invalid: 記録操作の無効遷移', () => {
     expect(air(s).lastReset).toBe(iso(2026, 6, 1))
   })
 
-  // ※Findings #3: editHistory は日付形式を検証しないため、不正文字列がそのまま保存され、
-  //   recomputeLastReset の文字列ソートを通じて lastReset まで壊れる。現行挙動を固定する。
-  it('ST-invalid: editHistory は不正な日付文字列を検証せず素通しする（※Findings #3）', async () => {
+  // v2.1.9 で Findings #3 を修正: 以前は不正文字列がそのまま保存され、
+  // recomputeLastReset の辞書順ソートを通じて lastReset まで壊れた
+  // （残日数が NaN になり、通知も無言で止まる）。
+  it.each([
+    ['ゴミ文字列', 'ゴミ文字列'],
+    ['数値', 1750000000000],
+    ['Date オブジェクト（文字列のみ受理）', new Date(2026, 6, 1)],
+    ['オブジェクト', {}],
+  ])('ST-invalid: editHistory は不正な日付(%s)を拒否する', async (_label, bad) => {
     const s = await freshStore()
     s.pump(iso(2026, 6, 1))
     const id = air(s).history[0].id
-    s.editHistory(id, 'ゴミ文字列')
-    expect(air(s).history[0].date).toBe('ゴミ文字列')
-    expect(air(s).lastReset).toBe('ゴミ文字列') // 文字列ソートの結果そのまま lastReset に載る
+    s.editHistory(id, bad)
+    expect(air(s).history[0].date).toBe(iso(2026, 6, 1))
+    expect(air(s).lastReset).toBe(iso(2026, 6, 1))
+  })
+
+  it('ST: editHistory は別表現の日付を ISO へ正規化して保存する', async () => {
+    const s = await freshStore()
+    s.pump(iso(2026, 6, 1))
+    const id = air(s).history[0].id
+    s.editHistory(id, '2026/07/01')
+    const stored = air(s).history[0].date
+    expect(stored).toBe(new Date('2026/07/01').toISOString())
+    expect(air(s).lastReset).toBe(stored)
+  })
+
+  it.each([
+    ['ゴミ文字列', 'ゴミ文字列'],
+    ['空文字', ''],
+    ['数値', 1750000000000],
+  ])('ST-invalid: pump は不正な日付(%s)を拒否する（記録が増えない）', async (_label, bad) => {
+    const s = await freshStore()
+    s.pump(bad)
+    expect(air(s).history).toEqual([])
+    expect(air(s).lastReset).toBeNull()
   })
 
   it('ST-invalid: 無効な操作では購読者に通知されない', async () => {

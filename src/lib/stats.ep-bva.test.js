@@ -202,12 +202,12 @@ describe('totalCount', () => {
     expect(totalCount(input)).toBe(expected)
   })
 
-  // ※Findings #7: totalCount は sortedHistory と違い date 欠損要素を除外しないため、
-  //   両者の件数が食い違い得る。store の normalizeHistory が保存時に弾くので実運用では到達不能。
-  it('EP: date 欠損要素も数える（sortedHistory と不一致 / ※Findings #7）', () => {
+  // v2.1.9 で Findings #7 を修正: 以前は sortedHistory と母集団が食い違い、
+  // 履歴画面の「これまで N 回記録」とリストの行数がずれ得た。
+  it('EP: date 欠損要素は数えない（sortedHistory と同じ母集団）', () => {
     const input = [h('a', 2026, 6, 1), { id: 'x' }, null]
-    expect(totalCount(input)).toBe(3)
-    expect(sortedHistory(input)).toHaveLength(1)
+    expect(totalCount(input)).toBe(1)
+    expect(totalCount(input)).toBe(sortedHistory(input).length)
   })
 })
 

@@ -39,9 +39,9 @@ export function currentStreak(history, intervalDays) {
   return streak
 }
 
-// 記録総数。
+// 記録総数。sortedHistory と同じ母集団で数える（date 欠損の要素は含めない）。
 export function totalCount(history) {
-  return Array.isArray(history) ? history.length : 0
+  return sortedHistory(history).length
 }
 
 // 平均間隔を設定サイクルと比較した「傾向」（ヒートマップと同じサイクル基準）。

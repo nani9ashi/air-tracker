@@ -3,6 +3,7 @@
 // データは「複数自転車 × 複数項目」前提（README §5）。v1のUIは air 1項目のみ表示。
 // React へは useSyncExternalStore（src/store/useStore.js）で配る。
 // ============================================================
+import { toStoredDateISO } from '../lib/date.js'
 
 const STORAGE_KEY = 'air-tracker:state'
 const LEGACY_KEY = 'airTracker' // 旧バニラ版のキー（あれば取り込む）
@@ -42,27 +43,42 @@ function makeId() {
   return `h-${Date.now().toString(36)}-${__idSeq}-${rand}`
 }
 
+// 素のオブジェクト（配列・null を除く）か。外部データの要素間引きに使う。
+function isRecord(x) {
+  return !!x && typeof x === 'object' && !Array.isArray(x)
+}
+
 // 履歴配列を { id, date } へ正規化（旧形式の文字列/ id 欠損を補完）。
+// date が日付として解釈できない要素は捨て、解釈できたものは ISO 表現に揃える。
+// 外部データ（importJSON・旧キー・手編集した localStorage）の汚染はここで止める。
 function normalizeHistory(arr) {
   if (!Array.isArray(arr)) return []
   return arr
     .map((h) => {
-      if (!h) return null
-      const date = typeof h === 'string' ? h : h.date
+      const date = toStoredDateISO(typeof h === 'string' ? h : isRecord(h) ? h.date : null)
       if (!date) return null
-      return { id: h.id || makeId(), date }
+      return { id: (isRecord(h) && h.id) || makeId(), date }
     })
     .filter(Boolean)
 }
 
+// intervalDays を 1 以上の整数へ正規化。0/負/非数/欠損は既定 14。
+// 受理条件と丸めは setInterval と同じ（Number.isFinite かつ >= 1、採用値は Math.round）。
+// setInterval は「拒否して no-op」、こちらは「既定へ矯正」なので関数は分けている。
+function normalizeIntervalDays(v) {
+  const n = Math.round(Number(v))
+  return Number.isFinite(n) && n >= 1 ? n : 14
+}
+
+// 履歴の最新日を返す。空なら null。
+// ISO(UTC) 文字列は辞書順 = 時系列順（normalizeHistory が ISO 表現を保証する）。
+function latestDate(history) {
+  return history.length ? history.map((h) => h.date).sort().at(-1) : null
+}
+
 // 履歴から lastReset（最新の日付）を再計算。空なら null。
-// ISO(UTC) 文字列は辞書順 = 時系列順。
 function recomputeLastReset(item) {
-  if (!item.history.length) {
-    item.lastReset = null
-    return
-  }
-  item.lastReset = item.history.map((h) => h.date).sort().at(-1)
+  item.lastReset = latestDate(item.history)
 }
 
 export function makeDefaultState() {
@@ -108,7 +124,9 @@ export function migrate(raw) {
     if (raw.lastPump) item.lastReset = raw.lastPump
     if (raw.intervalDays) item.intervalDays = raw.intervalDays
     item.history = normalizeHistory(raw.history)
-    return def
+    // 値の検証（日付・間隔・名前）は normalize に集約する。v1 フラットも外部データ由来
+    // （手編集 JSON / 旧キー）なので、ここを素通りさせると入口が二重になる。
+    return normalize(def)
   }
 
   return makeDefaultState()
@@ -124,22 +142,33 @@ export function normalize(state) {
   const plan = 'plan' in src ? normalizePlan(src.plan) : src.isPremium ? 'pro' : 'free'
   const settings = { ...def.settings, ...src, plan }
   delete settings.isPremium
-  const bikes =
-    Array.isArray(state.bikes) && state.bikes.length
-      ? state.bikes.map((b) => ({
+  // 外部データは要素が null や配列のこともある（手編集 JSON / 破損 localStorage）。
+  // 素のオブジェクトだけを残し、全滅したら既定へ落とす。
+  const srcBikes = Array.isArray(state.bikes) ? state.bikes.filter(isRecord) : []
+  const bikes = srcBikes.length
+    ? srcBikes.map((b) => {
+        const srcItems = Array.isArray(b.items) ? b.items.filter(isRecord) : []
+        return {
           id: b.id || 'bike-1',
-          name: b.name || DEFAULT_BIKE_NAME,
-          items:
-            Array.isArray(b.items) && b.items.length
-              ? b.items.map((it) => ({
+          // setBikeName / addBike と同じ正規化（空白のみの名前は既定名）。
+          name: String(b.name || '').trim() || DEFAULT_BIKE_NAME,
+          items: srcItems.length
+            ? srcItems.map((it) => {
+                const history = normalizeHistory(it.history)
+                return {
                   type: it.type || 'air',
-                  lastReset: it.lastReset ?? null,
-                  intervalDays: it.intervalDays || 14,
-                  history: normalizeHistory(it.history),
-                }))
-              : def.bikes[0].items,
-        }))
-      : def.bikes
+                  // lastReset が壊れていても履歴が生きていれば最新日から復元する
+                  // （履歴があるのに「未記録」表示になるのを防ぐ）。
+                  // 履歴が空でも lastReset が有効な場合はある（v1 からの移行データ）。
+                  lastReset: toStoredDateISO(it.lastReset) ?? latestDate(history),
+                  intervalDays: normalizeIntervalDays(it.intervalDays),
+                  history,
+                }
+              })
+            : def.bikes[0].items,
+        }
+      })
+    : def.bikes
   // activeBikeId が存在しなければ先頭に寄せる
   if (!bikes.some((b) => b.id === settings.activeBikeId)) {
     settings.activeBikeId = bikes[0].id
@@ -213,23 +242,29 @@ export function subscribe(listener) {
 }
 
 // active な air の lastReset を更新し history に追記。
+// 引数は ISO 文字列（Date オブジェクトではない）。解釈できない値は no-op。
 export function pump(dateISO = new Date().toISOString()) {
+  const date = toStoredDateISO(dateISO)
+  if (!date) return
   const next = structuredCloneState(state)
   const item = getActiveAirItem(next)
-  item.history.push({ id: makeId(), date: dateISO })
+  item.history.push({ id: makeId(), date })
   // v1.5: 全プランで履歴は削除しない（無料は 4件目以降をロック/ぼかし表示）。
   recomputeLastReset(item)
   commit(next)
 }
 
 // 履歴1件の日付を編集。lastReset を再計算。
+// 日付として解釈できない値は拒否（no-op）。素通しすると recomputeLastReset の
+// 辞書順ソート経由で lastReset まで壊れ、残日数と通知が無言で止まる。
 export function editHistory(id, dateISO) {
-  if (!id || !dateISO) return
+  const date = toStoredDateISO(dateISO)
+  if (!id || !date) return
   const next = structuredCloneState(state)
   const item = getActiveAirItem(next)
   const h = item.history.find((x) => x.id === id)
   if (!h) return
-  h.date = dateISO
+  h.date = date
   recomputeLastReset(item)
   commit(next)
 }

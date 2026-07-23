@@ -266,14 +266,102 @@ describe('normalize — bikes / items が空・欠落のときの回復', () => 
     expect(out.bikes[0].items[0].intervalDays).toBe(expected)
   })
 
-  // ※Findings #4: normalize は負の intervalDays を弾かない（`|| 14` は負数を通す）。
-  it('EP: 負の intervalDays はそのまま残る（※Findings #4）', () => {
+  // v2.1.9 で Findings #4 を修正: 以前は `|| 14` が負数を通し、importJSON 経由の
+  // 負サイクルが常時 overdue 表示（かつ通知が無言で停止）を引き起こした。
+  it.each([
+    ['負数', -5, 14],
+    ['-1', -1, 14],
+    ['0', 0, 14],
+    ['Infinity', Infinity, 14],
+    ['NaN', NaN, 14],
+    ["'abc'", 'abc', 14],
+    ['小数（round で 1）', 1.4, 1],
+    ['小数（round で 2）', 1.5, 2],
+    ["数値文字列 '21'", '21', 21],
+    ['下限ちょうど 1', 1, 1],
+    ['正常値 28', 28, 28],
+  ])('EP: intervalDays が %s → %i に矯正される', (_label, input, expected) => {
     const out = normalize({
       version: 3,
-      bikes: [{ id: 'bike-1', name: 'X', items: [{ type: 'air', lastReset: null, intervalDays: -5, history: [] }] }],
+      bikes: [{ id: 'bike-1', name: 'X', items: [{ type: 'air', lastReset: null, intervalDays: input, history: [] }] }],
       settings: { plan: 'free', activeBikeId: 'bike-1' },
     })
-    expect(out.bikes[0].items[0].intervalDays).toBe(-5)
+    expect(out.bikes[0].items[0].intervalDays).toBe(expected)
+  })
+
+  // v2.1.9: 外部データは要素が null や配列のこともある。素通しすると normalize が
+  // TypeError を投げ、importJSON の commit が try の外なので SettingsScreen の
+  // reader.onload まで例外が抜けてトーストすら出なくなる（Findings #9）。
+  it.each([
+    ['bikes に null 要素', { version: 3, bikes: [null, { id: 'b1', name: 'X', items: [] }], settings: {} }],
+    ['bikes に配列要素', { version: 3, bikes: [[], { id: 'b1', name: 'X', items: [] }], settings: {} }],
+    ['bikes が全て null', { version: 3, bikes: [null, null], settings: {} }],
+    ['items に null 要素', { version: 3, bikes: [{ id: 'b1', name: 'X', items: [null] }], settings: {} }],
+    ['items に文字列要素', { version: 3, bikes: [{ id: 'b1', name: 'X', items: ['air'] }], settings: {} }],
+  ])('EP: 不正な要素(%s)でも例外を投げず v3 を返す（※Findings #9）', (_label, raw) => {
+    const out = normalize(raw)
+    expect(out.version).toBe(3)
+    expect(out.bikes.length).toBeGreaterThanOrEqual(1)
+    for (const b of out.bikes) {
+      expect(b.items.length).toBeGreaterThanOrEqual(1)
+      for (const it of b.items) expect(typeof it.intervalDays).toBe('number')
+    }
+    expect(out.bikes.some((b) => b.id === out.settings.activeBikeId)).toBe(true)
+  })
+
+  // v2.1.9: 保存する日付は ISO 表現に揃える。recomputeLastReset / sortedHistory が
+  // 「辞書順＝時系列順」を前提に .sort() しているため、別表現が混ざると最新判定が壊れる。
+  it('EP: history の日付は ISO 表現へ正規化される（辞書順ソートを守る）', () => {
+    const out = normalize({
+      version: 3,
+      bikes: [
+        {
+          id: 'bike-1',
+          name: 'X',
+          items: [
+            {
+              type: 'air',
+              lastReset: '2026/01/01',
+              intervalDays: 14,
+              history: [{ id: 'h1', date: '2026/01/01' }, { id: 'h2', date: B }],
+            },
+          ],
+        },
+      ],
+      settings: { plan: 'free', activeBikeId: 'bike-1' },
+    })
+    const item = out.bikes[0].items[0]
+    for (const h of item.history) expect(h.date).toBe(new Date(h.date).toISOString())
+    expect(item.lastReset).toBe(new Date('2026/01/01').toISOString())
+    // 正規化済みなら辞書順の最大＝時系列の最新になる
+    expect(item.history.map((h) => h.date).sort().at(-1)).toBe(B)
+  })
+
+  it.each([
+    ['ゴミ文字列', 'ゴミ文字列'],
+    ['空文字', ''],
+    ['数値', 1750000000000],
+  ])('EP: lastReset が不正(%s)なら null に落とす', (_label, bad) => {
+    const out = normalize({
+      version: 3,
+      bikes: [{ id: 'bike-1', name: 'X', items: [{ type: 'air', lastReset: bad, intervalDays: 14, history: [] }] }],
+      settings: { plan: 'free', activeBikeId: 'bike-1' },
+    })
+    expect(out.bikes[0].items[0].lastReset).toBeNull()
+  })
+
+  it.each([
+    ['空白のみ', '   ', 'マイバイク'],
+    ['タブ・改行のみ', '\t\n ', 'マイバイク'],
+    ['前後に空白', '  通勤号  ', '通勤号'],
+    ['空文字', '', 'マイバイク'],
+  ])('EP: 自転車名 %s → %s（setBikeName / addBike と同じ正規化）', (_label, input, expected) => {
+    const out = normalize({
+      version: 3,
+      bikes: [{ id: 'bike-1', name: input, items: [] }],
+      settings: { plan: 'free', activeBikeId: 'bike-1' },
+    })
+    expect(out.bikes[0].name).toBe(expected)
   })
 
   it.each([

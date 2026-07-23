@@ -63,7 +63,8 @@ export default function HistoryScreen() {
   }
   const closeEdit = () => setEditing(null)
   const saveEdit = () => {
-    if (editing && editValue) editHistory(editing.id, dateInputToISO(editValue))
+    const iso = dateInputToISO(editValue)
+    if (editing && iso) editHistory(editing.id, iso)
     closeEdit()
   }
   const deleteEntry = () => {

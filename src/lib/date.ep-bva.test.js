@@ -13,6 +13,7 @@ import {
   computeStatus,
   toDateInputValue,
   dateInputToISO,
+  toStoredDateISO,
   formatDateJP,
   computeNextDueDate,
 } from './date.js'
@@ -322,16 +323,73 @@ describe('dateInputToISO', () => {
     expect(new Date(dateInputToISO('2026-06-20')).getHours()).toBe(12)
   })
 
-  // ※Findings #2: 不正入力は Invalid Date に toISOString() を呼んで RangeError になる。
-  //   現状は呼び出し側（PumpSheet.jsx / HistoryScreen.jsx）の `value &&` ガード頼み。
+  // v2.1.9 で Findings #2 を修正: 以前は Invalid Date に toISOString() を呼んで
+  // RangeError を投げ、呼び出し側（PumpSheet.jsx / HistoryScreen.jsx）の `value &&`
+  // ガード頼みだった。現在は例外ではなく null を返し、呼び出し側が truthy で弾く。
   it.each([
     ['空文字', ''],
     ['数値でない', 'abc'],
     ['日が欠けている', '2026-06'],
     ['末尾にゴミ', '2026-06-20x'],
     ['区切りが違う', '2026/06/20'],
-  ])('EP: 不正な入力(%s)は RangeError を投げる（※Findings #2）', (_label, bad) => {
-    expect(() => dateInputToISO(bad)).toThrow(RangeError)
+    ['null', null],
+    ['undefined', undefined],
+    ['数値', 20260620],
+  ])('EP: 不正な入力(%s)は null を返す（例外を投げない）', (_label, bad) => {
+    expect(dateInputToISO(bad)).toBeNull()
+  })
+})
+
+// ------------------------------------------------------------
+// toStoredDateISO — 保存する日付文字列の検証・正規化（v2.1.9 で追加）
+// recomputeLastReset / sortedHistory は「ISO は辞書順＝時系列順」を前提に
+// .sort() するため、保存値は必ず ISO 表現に揃える必要がある。
+// ------------------------------------------------------------
+describe('toStoredDateISO', () => {
+  it.each([
+    ['ISO(UTC)', at(2026, 6, 1, 12).toISOString()],
+    ['ミリ秒なし ISO', '2026-06-01T03:00:00Z'],
+    ['日付のみ', '2026-06-01'],
+  ])('EP: 有効な入力(%s)は ISO 文字列を返す', (_label, value) => {
+    const r = toStoredDateISO(value)
+    expect(r).toBe(new Date(value).toISOString())
+    expect(r).toMatch(/^\d{4}-\d{2}-\d{2}T[\d:.]+Z$/)
+  })
+
+  it.each([
+    ['スラッシュ区切り', '2026/06/01'],
+    ['オフセット付き', '2026-06-01T12:00:00+09:00'],
+    ['英語表記', 'June 1 2026'],
+  ])('EP: 別表現(%s)も ISO 表現へ正規化される（辞書順ソートを守るため）', (_label, value) => {
+    const r = toStoredDateISO(value)
+    expect(r).toBe(new Date(value).toISOString())
+    expect(r.includes('/')).toBe(false)
+  })
+
+  it.each([
+    ['空文字', ''],
+    ['ゴミ文字列', 'ゴミ文字列'],
+    ['null', null],
+    ['undefined', undefined],
+    ['数値', 1750000000000],
+    ['Date オブジェクト（文字列のみ受理）', new Date()],
+    ['オブジェクト', {}],
+    ['配列', []],
+  ])('EP: 無効な入力(%s)は null', (_label, bad) => {
+    expect(toStoredDateISO(bad)).toBeNull()
+  })
+
+  it('BVA: 正規化は冪等（一度通した値を再度通しても変わらない）', () => {
+    const once = toStoredDateISO('2026/06/01')
+    expect(toStoredDateISO(once)).toBe(once)
+  })
+
+  it('BVA: 正規化後は辞書順が時系列順と一致する', () => {
+    const raw = ['2026-06-01T12:00:00.000Z', '2026/01/01', '2026-12-31T12:00:00.000Z']
+    const normalized = raw.map(toStoredDateISO).sort()
+    // 正規化前は '/'(0x2F) > '-'(0x2D) で '2026/01/01' が最後に並んでしまう
+    expect([...raw].sort().at(-1)).toBe('2026/01/01')
+    expect(normalized.at(-1)).toBe(new Date('2026-12-31T12:00:00.000Z').toISOString())
   })
 })
 
