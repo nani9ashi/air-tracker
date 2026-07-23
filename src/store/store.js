@@ -106,30 +106,58 @@ export function makeDefaultState() {
   }
 }
 
+// v1 フラット shape（旧バニラ版）か。
+function isFlatV1(raw) {
+  return 'lastPump' in raw || 'intervalDays' in raw || 'history' in raw
+}
+
+// migrate が取り込める形か。**バージョン番号は見ない**。
+//
+// 以前は version === 3 || version === 2 を要求していたため、未知の将来バージョン
+// （v4 等）が v1 フラット判定にも該当せず初期 state に落ち、起動時 persist() が
+// それを書き戻して元データが復元不能になっていた（旧 Findings #1）。
+// normalize は全フィールドを補完する防御的な実装なので、bikes の形さえしていれば
+// 未知バージョンでも安全に通せる。
+//
+// ただし「加算的なスキーマ変更」に限る。intervalDays の単位を変える、lastReset を
+// オブジェクト化するといった破壊的変更をすると、旧版が誤解釈したうえで v3 形式に
+// 書き戻すため復旧できない壊れ方をする。
+// → 運用ルール: storage の shape 変更は加算のみ。破壊的変更をするなら STORAGE_KEY を変える。
+export function canMigrate(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return false
+  return Array.isArray(raw.bikes) || isFlatV1(raw)
+}
+
+// canMigrate を通ったうえで、実際に復元できる中身があるか。
+// importJSON でだけ使う（「空のバックアップ」を成功扱いにしないため）。
+// migrate 側では使わない: {bikes:[], settings:{plan:'pro'}} は bikes が空でも
+// plan を保持したまま normalize を通すべきで、初期 state に落としてはいけない。
+export function hasRestorableData(raw) {
+  if (!canMigrate(raw)) return false
+  if (Array.isArray(raw.bikes)) return raw.bikes.some(isRecord)
+  return isFlatV1(raw)
+}
+
 // 旧データ → v3 へ正規化。
-// - 既に v3（または v2）+ bikes 配列なら normalize に通す（欠損補完＋isPremium→plan）。
+// - bikes 配列を持つなら normalize に通す（欠損補完＋isPremium→plan＋値の検証）。
 // - 旧フラット shape { lastPump, intervalDays, history } を検出したら移植（plan は free）。
 // - それ以外は初期state。
 export function migrate(raw) {
-  if (!raw || typeof raw !== 'object') return makeDefaultState()
+  if (!canMigrate(raw)) return makeDefaultState()
 
-  if ((raw.version === VERSION || raw.version === 2) && Array.isArray(raw.bikes)) {
+  if (Array.isArray(raw.bikes)) {
     return normalize(raw)
   }
 
   // v1 フラット shape（プレミアム概念なし → plan は free のまま）
-  if ('lastPump' in raw || 'intervalDays' in raw || 'history' in raw) {
-    const def = makeDefaultState()
-    const item = def.bikes[0].items[0]
-    if (raw.lastPump) item.lastReset = raw.lastPump
-    if (raw.intervalDays) item.intervalDays = raw.intervalDays
-    item.history = normalizeHistory(raw.history)
-    // 値の検証（日付・間隔・名前）は normalize に集約する。v1 フラットも外部データ由来
-    // （手編集 JSON / 旧キー）なので、ここを素通りさせると入口が二重になる。
-    return normalize(def)
-  }
-
-  return makeDefaultState()
+  const def = makeDefaultState()
+  const item = def.bikes[0].items[0]
+  if (raw.lastPump) item.lastReset = raw.lastPump
+  if (raw.intervalDays) item.intervalDays = raw.intervalDays
+  item.history = normalizeHistory(raw.history)
+  // 値の検証（日付・間隔・名前）は normalize に集約する。v1 フラットも外部データ由来
+  // （手編集 JSON / 旧キー）なので、ここを素通りさせると入口が二重になる。
+  return normalize(def)
 }
 
 // 既存 v2/v3 データに欠損フィールドがあっても壊れないよう補完し、v3 へ揃える。
@@ -176,21 +204,46 @@ export function normalize(state) {
   return { version: VERSION, bikes, settings }
 }
 
-function load() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw) return migrate(JSON.parse(raw))
-    // 新キーが無ければ旧バニラ版キーを取り込む
-    const legacy = localStorage.getItem(LEGACY_KEY)
-    if (legacy) return migrate(JSON.parse(legacy))
-  } catch (e) {
-    console.warn('[store] load failed, using defaults', e)
+// 保存データを読み、state と「由来」を返す。
+//   fresh      … 保存が無く初期 state を作った
+//   migrated   … 保存データを解釈できた（旧キーからの取り込みを含む）
+//   unreadable … 保存はあるが解釈できなかった（壊れた JSON / 未知の形式）
+//
+// 由来を返すのは、起動時の書き出しを出し分けるため。unreadable を初期 state で
+// 上書きすると、解釈できなかっただけの原データが復元不能になる（旧 Findings #1）。
+export function loadWithOrigin(read = (k) => localStorage.getItem(k)) {
+  const attempt = (key) => {
+    const text = read(key)
+    if (!text) return null
+    try {
+      const raw = JSON.parse(text)
+      // 解釈できない形式は「読めなかった」扱い。初期 state で塗り潰さない。
+      return canMigrate(raw)
+        ? { state: migrate(raw), origin: 'migrated' }
+        : { state: makeDefaultState(), origin: 'unreadable' }
+    } catch (e) {
+      console.warn('[store] load failed, using defaults', e)
+      return { state: makeDefaultState(), origin: 'unreadable' }
+    }
   }
-  return makeDefaultState()
+
+  try {
+    // 新キー →（無ければ）旧バニラ版キーの順に見る
+    return attempt(STORAGE_KEY) ?? attempt(LEGACY_KEY) ?? { state: makeDefaultState(), origin: 'fresh' }
+  } catch (e) {
+    // localStorage 自体が使えない（プライベートモード等）
+    console.warn('[store] load failed, using defaults', e)
+    return { state: makeDefaultState(), origin: 'unreadable' }
+  }
+}
+
+function load() {
+  return loadWithOrigin().state
 }
 
 // ---- ストア本体（購読可能） ----
-let state = load()
+const loaded = loadWithOrigin()
+let state = loaded.state
 const listeners = new Set()
 
 function persist() {
@@ -201,8 +254,12 @@ function persist() {
   }
 }
 
-// 初回起動時、新キーへ確実に書き出す（旧キー取り込み or 初期生成の確定）。
-persist()
+// 起動時の書き出し。旧キーからの取り込みと初期生成を新キーへ確定させる役割がある。
+// ただし unreadable のときは書かない: 解釈できなかった原データを残しておけば、
+// 修正版を配ったときに復元できる余地がある（上書きすると永久に失われる）。
+// 注: 温存されるのは「次にユーザーが操作するまで」。何か記録すれば commit→persist で
+// 上書きされる。恒久的な退避（.bak キー）は入れていない。
+if (loaded.origin !== 'unreadable') persist()
 
 // 開発時のみ: コンソールからプランを切り替え/確認できるように公開（本番ビルドでは消える）。
 if (import.meta.env.DEV && typeof window !== 'undefined') {
@@ -347,12 +404,10 @@ export function exportJSON() {
   return JSON.stringify(state, null, 2)
 }
 
-function looksLikeData(raw) {
-  if (!raw || typeof raw !== 'object') return false
-  if (Array.isArray(raw.bikes)) return true
-  if ('lastPump' in raw || 'intervalDays' in raw || 'history' in raw) return true
-  return false
-}
+// 受理条件は canMigrate / hasRestorableData に集約した（旧 looksLikeData）。
+// 以前は「bikes が配列でありさえすれば true」だったため、migrate が捨てる入力を
+// 通してしまい、ok:true（UI は「バックアップを復元しました」）を返しながら
+// 既存データを消していた（旧 Findings #8）。
 
 // JSON文字列を検証→マイグレーション→置換。{ ok, error } を返す。
 export function importJSON(text) {
@@ -362,10 +417,21 @@ export function importJSON(text) {
   } catch {
     return { ok: false, error: 'JSONを読み取れませんでした' }
   }
-  if (!looksLikeData(raw)) {
+  if (!canMigrate(raw)) {
     return { ok: false, error: '対応していないデータ形式です' }
   }
-  commit(migrate(raw))
+  // 形式は合っているが中身が空のファイル。置換すると今のデータが消えるだけなので弾く。
+  if (!hasRestorableData(raw)) {
+    return { ok: false, error: 'このファイルには復元できる記録がありません' }
+  }
+  try {
+    commit(migrate(raw))
+  } catch (e) {
+    // commit は try の外に置かない: 例外が呼び出し側（SettingsScreen の
+    // reader.onload）まで抜けると、成功トーストもエラートーストも出ない。
+    console.warn('[store] import failed', e)
+    return { ok: false, error: '復元に失敗しました' }
+  }
   return { ok: true }
 }
 
