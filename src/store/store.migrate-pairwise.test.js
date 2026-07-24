@@ -13,6 +13,7 @@ import { freshStore, readPersisted, iso, STORAGE_KEY, LEGACY_KEY } from './__hel
 
 const A = iso(2026, 6, 1)
 const B = iso(2026, 6, 15)
+const VERSION_NOW = 3 // store.js の VERSION（非 export なのでここで固定）
 
 const air = (s) => s.getActiveAirItem(s.getState())
 
@@ -88,25 +89,38 @@ describe('migrate — バージョン振り分けの EP', () => {
     ['真偽値', true],
     ['空オブジェクト', {}],
     ['空配列', []],
-    ['version=1 + bikes（v1フラットのキーが無い）', { version: 1, bikes: [{ id: 'b', items: [] }] }],
-    ["version='3'（文字列＝厳密比較で不一致）", { version: '3', bikes: [{ id: 'b', items: [] }] }],
     ['version=3 だが bikes が非配列', { version: 3, bikes: 'nope', settings: { plan: 'pro' } }],
     ['version=3 だが bikes キー自体が無い', { version: 3, settings: { plan: 'pro' } }],
   ])('EP: 無効な入力(%s)は初期 state', (_label, bad) => {
     expect(migrate(bad)).toEqual(makeDefaultState())
   })
 
-  // ※Findings #1（重大）: 未知の将来バージョンは v1 フラット判定にも該当せず初期 state に落ちる。
-  //   ダウングレード時に全記録を失う。現行挙動を固定する。
-  it.each([[4], [5], [99]])(
-    'EP: 未知の将来バージョン(version=%i)のデータは破棄される（※Findings #1）',
-    (version) => {
-      const r = migrate({ version, bikes: validBikes(), settings: { plan: 'premium', activeBikeId: 'bike-1' } })
-      expect(r).toEqual(makeDefaultState())
-      expect(r.bikes[0].items[0].history).toEqual([]) // 履歴が消える
-      expect(r.settings.plan).toBe('free') // プランも失われる
-    },
-  )
+  // v2.1.9 で Findings #1 を修正: migrate はバージョン番号を見ず bikes の形で判定する。
+  // 以前は version が 3/2 でないと初期 state に落ち、起動時 persist() が
+  // それを書き戻して元データが復元不能になっていた。
+  it.each([
+    ['未知の将来バージョン 4', 4],
+    ['未知の将来バージョン 5', 5],
+    ['未知の将来バージョン 99', 99],
+    ['version=1 + bikes 配列', 1],
+    ["version='3'（文字列）", '3'],
+    ['version キーが無い', undefined],
+  ])('EP: %s でも bikes の形をしていれば記録を保つ', (_label, version) => {
+    const raw = { bikes: validBikes(), settings: { plan: 'premium', activeBikeId: 'bike-1' } }
+    if (version !== undefined) raw.version = version
+    const r = migrate(raw)
+    expect(r.version).toBe(VERSION_NOW) // 常に現行バージョンへ揃える
+    expect(r.bikes[0].name).toBe('通勤号')
+    expect(r.bikes[0].items[0].history).toHaveLength(1)
+    expect(r.bikes[0].items[0].intervalDays).toBe(21)
+    expect(r.settings.plan).toBe('premium')
+  })
+
+  it('EP: 未知の settings キーは温存される（加算的なスキーマ変更に耐える）', () => {
+    const r = migrate({ version: 4, bikes: validBikes(), settings: { plan: 'pro', notifyHour: 7, locale: 'en' } })
+    expect(r.settings.notifyHour).toBe(7)
+    expect(r.settings.locale).toBe('en')
+  })
 })
 
 // ------------------------------------------------------------
@@ -497,15 +511,41 @@ describe('load — 保存データの読み込み', () => {
     warn.mockRestore()
   })
 
-  // ※Findings #1: 起動時 persist() が走るため、破棄された将来バージョンのデータは
-  //   localStorage 上からも失われ、復元できない。
-  it('EP: 未知の将来バージョンは読み込み時に破棄され、localStorage も上書きされる（※Findings #1）', async () => {
+  // v2.1.9 で Findings #1 を修正: 未知の将来バージョンでも記録を保つ。
+  it('EP: 未知の将来バージョンでも読み込み時に記録を保つ', async () => {
     const future = { version: 4, bikes: validBikes(), settings: { plan: 'premium', activeBikeId: 'bike-1' } }
     const s = await freshStore(future)
-    expect(air(s).history).toEqual([])
-    expect(s.getState().settings.plan).toBe('free')
-    // 保存済みデータ自体が初期 state に置き換わっている＝旧データは復元不能
+    expect(air(s).history).toHaveLength(1)
+    expect(air(s).intervalDays).toBe(21)
+    expect(s.getState().settings.plan).toBe('premium')
+    // 現行バージョンへ揃えて書き戻される
+    expect(readPersisted().version).toBe(VERSION_NOW)
+  })
+
+  // v2.1.9: 解釈できなかったデータは初期 state で上書きしない。
+  // 上書きすると「読めなかっただけ」のデータが永久に失われる。
+  it.each([
+    ['壊れた JSON', '{{{ not json'],
+    ['未知の形式', '{"foo":1}'],
+    ['配列', '[]'],
+  ])('EP: 保存データが %s のとき、原データを上書きしない（復元の余地を残す）', async (_label, bad) => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const s = await freshStore(bad)
+    expect(s.getState()).toEqual(makeDefaultState()) // 画面は初期状態で立ち上がる
+    expect(localStorage.getItem(STORAGE_KEY)).toBe(bad) // だが原データは残っている
+    warn.mockRestore()
+  })
+
+  it('EP: 解釈できたデータは従来どおり新キーへ書き出す（旧キー取り込みの確定）', async () => {
+    const s = await freshStore({ lastPump: B, intervalDays: 7, history: [A, B] }, { key: LEGACY_KEY })
+    expect(air(s).intervalDays).toBe(7)
+    expect(readPersisted(STORAGE_KEY).bikes[0].items[0].history).toHaveLength(2)
+  })
+
+  it('EP: 保存が無いときも初期 state を書き出す', async () => {
+    const s = await freshStore()
     expect(readPersisted()).toEqual(makeDefaultState())
+    expect(s.getState()).toEqual(makeDefaultState())
   })
 })
 
@@ -589,18 +629,32 @@ describe('importJSON — 無効パーティション', () => {
     expect(JSON.stringify(s.getState())).toBe(before)
   })
 
-  // ※Findings #8: looksLikeData は bikes が配列でありさえすれば通すが、
-  //   migrate は version 不一致で初期 state に落とす。エラーにならず既存データが消える。
+  // v2.1.9 で Findings #8 を修正: 受理条件を migrate と揃え、
+  // 「中身が空」を成功扱いにしない。以前は ok:true を返しながら既存データを消していた。
   it.each([
-    ['bikes が空配列 / version 無し', '{"bikes":[]}'],
-    ['bikes はあるが version が未知', '{"version":9,"bikes":[{"id":"b","items":[]}]}'],
-  ])('EP: %s → ok:true のまま初期 state にリセットされる（※Findings #8）', async (_label, input) => {
+    ['bikes が空配列', '{"bikes":[]}'],
+    ['bikes の要素が全て null', '{"version":3,"bikes":[null,null]}'],
+  ])('EP: %s → 復元できる記録が無いとしてエラー', async (_label, input) => {
     const s = await freshStore()
     s.pump(iso(2026, 6, 1))
     s.setPlan('pro')
+    expect(s.importJSON(input)).toEqual({
+      ok: false,
+      error: 'このファイルには復元できる記録がありません',
+    })
+    // 既存データは無傷
+    expect(air(s).history).toHaveLength(1)
+    expect(s.getState().settings.plan).toBe('pro')
+  })
+
+  it('EP: version が未知でも中身があれば取り込める（データを失わない）', async () => {
+    const s = await freshStore()
+    s.pump(iso(2026, 6, 1))
+    const input = JSON.stringify({ version: 9, bikes: validBikes(), settings: { plan: 'premium' } })
     expect(s.importJSON(input)).toEqual({ ok: true })
-    expect(s.getState()).toEqual(makeDefaultState())
-    expect(air(s).history).toEqual([]) // 直前の記録が消える
+    expect(air(s).history).toHaveLength(1)
+    expect(air(s).intervalDays).toBe(21)
+    expect(s.getState().settings.plan).toBe('premium')
   })
 })
 
