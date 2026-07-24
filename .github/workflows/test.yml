@@ -1,0 +1,31 @@
+name: Test
+
+# PR とデフォルトブランチへの push でユニットテストを回す。
+# deploy.yml にも npm test を入れてあるが、そちらは on: push:[main] のみで動くため
+# 「マージされてから初めて落ちる」ことになる。回帰を止めたいのは PR の時点なので、
+# デプロイ権限を持たない独立したワークフローとして分けている
+# （deploy.yml に pull_request を足すと pages:write / id-token:write を持つ
+#   deploy ジョブまで PR で動いてしまうため NG）。
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm test

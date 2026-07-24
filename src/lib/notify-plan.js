@@ -56,6 +56,13 @@ export function planNotifications(bikeName, lastReset, intervalDays, { userActio
       title: '明日は空気入れの日です',
       body: `「${name}」のタイヤに空気を入れましょう（${days}日間隔）`,
     })
+    // ⚠ この if を「常に真だから」と削除してはいけない。
+    // renudgeAt は primaryAt のちょうど3日後なので現実的な間隔では必ず真になるが、
+    // interval が極端に大きい（99979393 以上）と予定日が Date の表現上限に達し、
+    // renudgeAt だけが Invalid Date になってここが偽になる。
+    // 削除すると at:Invalid Date の通知が notifications.js:77 の schedule に渡って例外になり、
+    // 直前 :64 の cancel と相まって primary ごと登録されず、リマインダーが無言で全滅する。
+    // 境界は notify-plan.dt.test.js §2-4 で固定済み（経緯: docs/test-completion-report.md §5）。
     if (renudgeAt.getTime() > now) {
       out.push({
         kind: 'renudge',
