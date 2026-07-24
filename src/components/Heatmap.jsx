@@ -1,12 +1,29 @@
 import { useMemo } from 'react'
 import { sortedHistory } from '../lib/stats.js'
-import { toDateInputValue, startOfDayLocal } from '../lib/date.js'
+import { toDateInputValue, startOfDayLocal, computeStatus } from '../lib/date.js'
 import './Heatmap.css'
 
-const MS = 86400000
+// セルの濃淡。'over' / 'soon' はホーム画面の状態（computeStatus）と 1:1 で対応させる。
+// 'mid' / 'fresh' は状態ではなく **ok の中の濃淡**で、ヒートマップ固有の見せ方。
+// 閾値をここに書くと computeStatus と二重管理になり、片方だけ直すと
+// 「ホームはそろそろなのにヒートマップは平常色」という食い違いが起きる。
+const MID_RATIO = 0.6
+
+// ある日のセルの濃淡を返す。latest はその日以前で最も新しい記録（ローカル0:00のms）。
+// export しているのはテストのため（状態判定が computeStatus と一致することを固定する）。
+export function levelForDay(latest, dayMs, intervalDays) {
+  if (latest == null) return 'empty'
+  // computeStatus に「その日時点で」判定させる。経過日数の計算・intervalDays の
+  // 既定値・状態の閾値がすべて date.js 側に一本化される。
+  const { state, remaining } = computeStatus(new Date(latest), intervalDays, new Date(dayMs))
+  if (state === 'overdue') return 'over'
+  if (state === 'soon') return 'soon'
+  const interval = Number(intervalDays) || 14
+  return remaining / interval <= MID_RATIO ? 'mid' : 'fresh'
+}
 
 // 各日のタイヤ状態で色分け（プロト準拠の段階強度＋期限間近/超過）。
-function buildColumns(history, intervalDays, weeks) {
+export function buildColumns(history, intervalDays, weeks, now = new Date()) {
   const pumpKeys = new Set()
   const pumpStarts = []
   for (const h of sortedHistory(history)) {
@@ -16,8 +33,7 @@ function buildColumns(history, intervalDays, weeks) {
       pumpStarts.push(startOfDayLocal(new Date(h.date)).getTime())
     }
   }
-  const interval = Number(intervalDays) || 14
-  const today = startOfDayLocal(new Date())
+  const today = startOfDayLocal(now)
   const start = new Date(today)
   start.setDate(start.getDate() - (weeks * 7 - 1))
   start.setDate(start.getDate() - start.getDay())
@@ -30,13 +46,7 @@ function buildColumns(history, intervalDays, weeks) {
       if (ms <= dayMs) latest = ms
       else break
     }
-    if (latest == null) return 'empty'
-    const remaining = interval - Math.round((dayMs - latest) / MS)
-    const ratio = remaining / interval
-    if (remaining <= 0) return 'over'
-    if (ratio <= 0.25) return 'soon'
-    if (ratio <= 0.6) return 'mid'
-    return 'fresh'
+    return levelForDay(latest, dayMs, intervalDays)
   }
 
   const columns = []

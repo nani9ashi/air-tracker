@@ -10,6 +10,7 @@ import { useStore } from './store/useStore.js'
 import { applyTheme, resolveTheme, watchSystemTheme } from './lib/theme.js'
 import { applyStatusBar } from './lib/statusbar.js'
 import { syncActiveReminder } from './lib/notifications.js'
+import { installReminderSync } from './lib/reminder-sync.js'
 
 function useHash() {
   const [hash, setHash] = useState(window.location.hash)
@@ -40,9 +41,11 @@ export default function App() {
   useApplyTheme()
 
   // 起動時、通知が許可済みなら現在の予定日でリマインダーを再同期（プロンプトなし・nativeのみ）。
-  // ※履歴の編集/削除で予定日が変わる場合は次のリセット/周期変更/再起動で整合する（basic）。
+  // 以降は reminder-sync が store を購読し、予定日が変わるたびに貼り直す
+  // （履歴の編集/削除・自転車の切替でも整合する）。
   useEffect(() => {
     syncActiveReminder()
+    return installReminderSync()
   }, [])
 
   // 開発時のみ #preview でコンポーネントカタログ。
