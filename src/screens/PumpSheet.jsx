@@ -70,7 +70,10 @@ export default function PumpSheet({ open, onClose, onConfirm }) {
               variant="energy"
               size="md"
               block
-              onClick={() => dateValue && onConfirm(dateInputToISO(dateValue))}
+              onClick={() => {
+                const iso = dateInputToISO(dateValue)
+                if (iso) onConfirm(iso)
+              }}
             >
               この日で記録する
             </Button>

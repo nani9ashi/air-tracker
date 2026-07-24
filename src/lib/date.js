@@ -109,11 +109,24 @@ export function toDateInputValue(d = new Date()) {
   return `${y}-${m}-${day}`
 }
 
+// 保存済みの日付文字列を検証・正規化して ISO(UTC) 文字列にする。解釈できなければ null。
+// 保存値は必ず ISO 表現に揃える: recomputeLastReset（store.js）と sortedHistory（stats.js）は
+// 「ISO 文字列は辞書順＝時系列順」という前提で .sort() しているため、'2026/06/01' のような
+// 別表現が混ざると '/'(0x2F) > '-'(0x2D) で全 ISO 値より後ろに並び、最新判定が壊れる。
+// 外部データ（importJSON・旧キー・手編集した localStorage）の入口で必ず通すこと。
+export function toStoredDateISO(value) {
+  if (typeof value !== 'string') return null
+  const t = new Date(value)
+  return Number.isNaN(t.getTime()) ? null : t.toISOString()
+}
+
 // 'YYYY-MM-DD'（ローカル日付）→ その日の正午のローカル時刻の ISO 文字列。
 // 正午にするのは、保存後に別TZで解釈されても日付がずれにくくするため。
+// 解釈できない入力は例外ではなく null を返す（呼び出し側は truthy で弾く）。
 export function dateInputToISO(value) {
-  const [y, m, d] = value.split('-').map(Number)
-  return new Date(y, m - 1, d, 12, 0, 0, 0).toISOString()
+  const [y, m, d] = String(value ?? '').split('-').map(Number)
+  const noon = new Date(y, m - 1, d, 12, 0, 0, 0)
+  return Number.isNaN(noon.getTime()) ? null : noon.toISOString()
 }
 
 // 日付の和文表示（例: 6月20日(金)）。

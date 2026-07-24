@@ -54,6 +54,32 @@ describe('migrate — バージョン振り分けの EP', () => {
     for (const h of item.history) expect(h.id).toBeTruthy()
   })
 
+  // v2.1.9: v1 フラットは normalize を通らない「第2の入口」だった。
+  // 手編集 JSON / 旧キー由来なので、v3 と同じ検証を通す必要がある。
+  it.each([
+    ['lastPump が不正', { lastPump: 'ゴミ' }, { lastReset: null, intervalDays: 14 }],
+    ['intervalDays が負', { intervalDays: -5 }, { lastReset: null, intervalDays: 14 }],
+    ['intervalDays が 0', { intervalDays: 0 }, { lastReset: null, intervalDays: 14 }],
+    ['intervalDays が文字列', { intervalDays: '21' }, { lastReset: null, intervalDays: 21 }],
+  ])('EP: v1 フラットの不正な値(%s)も normalize で矯正される', (_label, raw, expected) => {
+    const item = migrate(raw).bikes[0].items[0]
+    expect(item.lastReset).toBe(expected.lastReset)
+    expect(item.intervalDays).toBe(expected.intervalDays)
+  })
+
+  it('EP: v1 フラットの history から不正な要素が除かれ、lastReset が復元される', () => {
+    const item = migrate({ lastPump: 'ゴミ', intervalDays: -5, history: ['ゴミ', A, null, B] }).bikes[0].items[0]
+    expect(item.history.map((h) => h.date)).toEqual([A, B])
+    expect(item.intervalDays).toBe(14)
+    // lastPump が壊れていても履歴の最新から復元する
+    expect(item.lastReset).toBe(B)
+  })
+
+  it('EP: v1 フラットの history も ISO 表現へ正規化される', () => {
+    const item = migrate({ history: ['2026/07/20'] }).bikes[0].items[0]
+    expect(item.history[0].date).toBe(new Date('2026/07/20').toISOString())
+  })
+
   it.each([
     ['null', null],
     ['undefined', undefined],
@@ -266,14 +292,158 @@ describe('normalize — bikes / items が空・欠落のときの回復', () => 
     expect(out.bikes[0].items[0].intervalDays).toBe(expected)
   })
 
-  // ※Findings #4: normalize は負の intervalDays を弾かない（`|| 14` は負数を通す）。
-  it('EP: 負の intervalDays はそのまま残る（※Findings #4）', () => {
+  // v2.1.9 で Findings #4 を修正: 以前は `|| 14` が負数を通し、importJSON 経由の
+  // 負サイクルが常時 overdue 表示（かつ通知が無言で停止）を引き起こした。
+  it.each([
+    ['負数', -5, 14],
+    ['-1', -1, 14],
+    ['0', 0, 14],
+    ['Infinity', Infinity, 14],
+    ['NaN', NaN, 14],
+    ["'abc'", 'abc', 14],
+    ['小数（round で 1）', 1.4, 1],
+    ['小数（round で 2）', 1.5, 2],
+    ["数値文字列 '21'", '21', 21],
+    ['下限ちょうど 1', 1, 1],
+    ['正常値 28', 28, 28],
+  ])('EP: intervalDays が %s → %i に矯正される', (_label, input, expected) => {
     const out = normalize({
       version: 3,
-      bikes: [{ id: 'bike-1', name: 'X', items: [{ type: 'air', lastReset: null, intervalDays: -5, history: [] }] }],
+      bikes: [{ id: 'bike-1', name: 'X', items: [{ type: 'air', lastReset: null, intervalDays: input, history: [] }] }],
       settings: { plan: 'free', activeBikeId: 'bike-1' },
     })
-    expect(out.bikes[0].items[0].intervalDays).toBe(-5)
+    expect(out.bikes[0].items[0].intervalDays).toBe(expected)
+  })
+
+  // v2.1.9: 外部データは要素が null や配列のこともある。素通しすると normalize が
+  // TypeError を投げ、importJSON の commit が try の外なので SettingsScreen の
+  // reader.onload まで例外が抜けてトーストすら出なくなる（Findings #9）。
+  it.each([
+    ['bikes に null 要素', { version: 3, bikes: [null, { id: 'b1', name: 'X', items: [] }], settings: {} }],
+    ['bikes に配列要素', { version: 3, bikes: [[], { id: 'b1', name: 'X', items: [] }], settings: {} }],
+    ['bikes が全て null', { version: 3, bikes: [null, null], settings: {} }],
+    ['items に null 要素', { version: 3, bikes: [{ id: 'b1', name: 'X', items: [null] }], settings: {} }],
+    ['items に文字列要素', { version: 3, bikes: [{ id: 'b1', name: 'X', items: ['air'] }], settings: {} }],
+  ])('EP: 不正な要素(%s)でも例外を投げず v3 を返す（※Findings #9）', (_label, raw) => {
+    const out = normalize(raw)
+    expect(out.version).toBe(3)
+    expect(out.bikes.length).toBeGreaterThanOrEqual(1)
+    for (const b of out.bikes) {
+      expect(b.items.length).toBeGreaterThanOrEqual(1)
+      for (const it of b.items) expect(typeof it.intervalDays).toBe('number')
+    }
+    expect(out.bikes.some((b) => b.id === out.settings.activeBikeId)).toBe(true)
+  })
+
+  // v2.1.9: 保存する日付は ISO 表現に揃える。recomputeLastReset / sortedHistory が
+  // 「辞書順＝時系列順」を前提に .sort() しているため、別表現が混ざると最新判定が壊れる。
+  it('EP: history の日付は ISO 表現へ正規化される（辞書順ソートを守る）', () => {
+    const out = normalize({
+      version: 3,
+      bikes: [
+        {
+          id: 'bike-1',
+          name: 'X',
+          items: [
+            {
+              type: 'air',
+              lastReset: '2026/01/01',
+              intervalDays: 14,
+              history: [{ id: 'h1', date: '2026/01/01' }, { id: 'h2', date: B }],
+            },
+          ],
+        },
+      ],
+      settings: { plan: 'free', activeBikeId: 'bike-1' },
+    })
+    const item = out.bikes[0].items[0]
+    for (const h of item.history) expect(h.date).toBe(new Date(h.date).toISOString())
+    expect(item.lastReset).toBe(new Date('2026/01/01').toISOString())
+    // 正規化済みなら辞書順の最大＝時系列の最新になる
+    expect(item.history.map((h) => h.date).sort().at(-1)).toBe(B)
+  })
+
+  it.each([
+    ['ゴミ文字列', 'ゴミ文字列'],
+    ['空文字', ''],
+    ['数値', 1750000000000],
+  ])('EP: lastReset が不正(%s)で履歴も空なら null', (_label, bad) => {
+    const out = normalize({
+      version: 3,
+      bikes: [{ id: 'bike-1', name: 'X', items: [{ type: 'air', lastReset: bad, intervalDays: 14, history: [] }] }],
+      settings: { plan: 'free', activeBikeId: 'bike-1' },
+    })
+    expect(out.bikes[0].items[0].lastReset).toBeNull()
+  })
+
+  // v2.1.9: lastReset だけが壊れていても履歴が生きていれば救う。
+  // 落とすと「履歴に記録があるのにホームは未記録」という食い違いが起きる。
+  it.each([
+    ['ゴミ文字列', 'ゴミ文字列'],
+    ['空文字', ''],
+    ['数値', 1750000000000],
+    ['欠落', undefined],
+    ['null', null],
+  ])('EP: lastReset が不正(%s)でも履歴があれば最新日から復元する', (_label, bad) => {
+    const out = normalize({
+      version: 3,
+      bikes: [
+        {
+          id: 'bike-1',
+          name: 'X',
+          items: [
+            {
+              type: 'air',
+              lastReset: bad,
+              intervalDays: 14,
+              history: [{ id: 'h1', date: A }, { id: 'h2', date: B }],
+            },
+          ],
+        },
+      ],
+      settings: { plan: 'free', activeBikeId: 'bike-1' },
+    })
+    expect(out.bikes[0].items[0].lastReset).toBe(B) // B = A より新しい
+  })
+
+  it('EP: lastReset が有効なら履歴が空でも保たれる（v1 からの移行データ）', () => {
+    const out = normalize({
+      version: 3,
+      bikes: [{ id: 'bike-1', name: 'X', items: [{ type: 'air', lastReset: B, intervalDays: 14, history: [] }] }],
+      settings: { plan: 'free', activeBikeId: 'bike-1' },
+    })
+    expect(out.bikes[0].items[0].lastReset).toBe(B)
+  })
+
+  it('EP: 履歴の日付が別表現でも復元後は ISO 表現になる', () => {
+    const out = normalize({
+      version: 3,
+      bikes: [
+        {
+          id: 'bike-1',
+          name: 'X',
+          items: [{ type: 'air', lastReset: 'ゴミ', intervalDays: 14, history: [{ id: 'h1', date: '2026/07/20' }] }],
+        },
+      ],
+      settings: { plan: 'free', activeBikeId: 'bike-1' },
+    })
+    const item = out.bikes[0].items[0]
+    expect(item.lastReset).toBe(new Date('2026/07/20').toISOString())
+    expect(item.lastReset).toBe(item.history[0].date)
+  })
+
+  it.each([
+    ['空白のみ', '   ', 'マイバイク'],
+    ['タブ・改行のみ', '\t\n ', 'マイバイク'],
+    ['前後に空白', '  通勤号  ', '通勤号'],
+    ['空文字', '', 'マイバイク'],
+  ])('EP: 自転車名 %s → %s（setBikeName / addBike と同じ正規化）', (_label, input, expected) => {
+    const out = normalize({
+      version: 3,
+      bikes: [{ id: 'bike-1', name: input, items: [] }],
+      settings: { plan: 'free', activeBikeId: 'bike-1' },
+    })
+    expect(out.bikes[0].name).toBe(expected)
   })
 
   it.each([
