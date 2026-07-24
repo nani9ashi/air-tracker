@@ -1,6 +1,6 @@
 # テスト設計書 — ISTQB テスト設計技法の適用
 
-対象: QUUKI v2.1.8 の純粋ロジック（`src/lib/date.js` / `src/lib/stats.js` / `src/lib/notify-plan.js` / `src/store/store.js`）
+対象: QUUKI v2.1.9 の純粋ロジック（`src/lib/date.js` / `src/lib/stats.js` / `src/lib/notify-plan.js` / `src/store/store.js`）
 
 この文書は「どのテストを、なぜ、どの技法で導出したか」を記録したものです。
 テストコードは本書の表と 1:1 で対応し、テスト名は必ず技法名（`EP:` / `BVA:` / `DT-Rn:` / `ST:` / `ST-invalid:` / `PW-nn:`）で始まります。
@@ -14,22 +14,27 @@
 - **状態遷移が happy path のみ** — 「未記録 → 記録あり → 未記録」の往復や、最後の1台を消せないガードなどの無効遷移が未検証。
 - **ルール相互作用がアドホック** — `planNotifications` の 4 条件がデシジョンテーブル化されていない。
 
-本設計では要求から機械的にテストセットを導出し、**503 件を追加**しました（合計 556 件）。
+本設計では要求から機械的にテストセットを導出し、v2.1.8 で **503 件を追加**しました（合計 556 件）。
+その後 v2.1.9 で Findings の修正に伴いテストを更新・追加し、現在は **691 件**です。
 既存 53 件は 1 行も変更していません。
 
 ### 技法と対象の対応
 
 | 対象 | 主技法 | テストファイル | 件数 |
 |---|---|---|---:|
-| `date.js` | EP + BVA | `src/lib/date.ep-bva.test.js` | 131 |
+| `date.js` | EP + BVA | `src/lib/date.ep-bva.test.js` | 150 |
+| `date.js`（DST） | BVA（TZ 固定） | `src/lib/date.dst-tz.test.js` | 29 |
 | `notify-plan.js` | デシジョンテーブル + 時刻 BVA | `src/lib/notify-plan.dt.test.js` | 58 |
 | `stats.js` | EP + BVA | `src/lib/stats.ep-bva.test.js` | 83 |
-| `store.js`（ミューテータ） | 状態遷移 + 無効遷移マトリクス | `src/store/store.state-transition.test.js` | 102 |
-| `store.js`（migrate / import） | EP + ペアワイズ | `src/store/store.migrate-pairwise.test.js` | 129 |
+| `store.js`（ミューテータ） | 状態遷移 + 無効遷移マトリクス | `src/store/store.state-transition.test.js` | 109 |
+| `store.js`（migrate / import） | EP + ペアワイズ | `src/store/store.migrate-pairwise.test.js` | 173 |
+| `reminder-sync.js` | 状態遷移 | `src/lib/reminder-sync.test.js` | 18 |
+| `Heatmap.jsx` | DT（`computeStatus` との一致） | `src/components/Heatmap.test.js` | 18 |
 
 ### 設計方針
 
-- **テストは現行挙動を固定する。ソースコードは変更しない。** 設計中に見つかった疑義は末尾の [Findings](#findings) に列挙し、修正可否は別途判断します。仕様が確定するまで期待値を変えないよう、該当テストには `※Findings #N` のコメントを付けています。
+- **v2.1.8 ではテストで現行挙動を固定し、ソースコードは変更しませんでした。** 設計中に見つかった疑義は末尾の [Findings](#findings) に列挙してあります。
+- **v2.1.9 でその Findings を修正しました。** 期待値を変更したテストには、旧挙動と修正の経緯をコメントで残しています。
 - **日付は必ずローカル `Date` コンストラクタで構築**し、ISO 文字列リテラルを直書きしません。既存テストと同じ規律で TZ 非依存を保ちます。
 
 ---
@@ -67,7 +72,7 @@ remaining / interval <= 0.25 || remaining <= 2 → soon
 | lastReset | 無効（未来日） | 翌日 | elapsed 負 → `progress` は 1、`fill` は 0 にクランプ |
 | intervalDays | 無効 → 既定 14 | `0` / `NaN` / `'abc'` / `null` / `undefined` / `''` | 14 として扱う |
 | intervalDays | 有効（数値文字列） | `'21'` | 21 として扱う |
-| intervalDays | 無効（負数） | `-5` / `-1` | **素通りする**。過去日なら overdue、未来日なら soon（Findings #4） |
+| intervalDays | 無効（負数） | `-5` / `-1` | `computeStatus` 単体では**素通りする**（過去日なら overdue、未来日なら soon）。v2.1.9 以降 `normalize` が入口で 14 に矯正するため、保存データには載らない |
 
 ### §1-3 `computeNextDueDate`
 
@@ -91,7 +96,8 @@ remaining / interval <= 0.25 || remaining <= 2 → soon
 
 - `toDateInputValue`: 1桁月日のゼロ埋め、0:00 / 23:59:59.999 でも当日、うるう日
 - `dateInputToISO`: 6 つの境界日で往復（`YYYY-MM-DD` → ISO → `YYYY-MM-DD`）、保存時刻が正午であること
-- `dateInputToISO` の無効パーティション: `''` / `'abc'` / `'2026-06'` / `'2026-06-20x'` / `'2026/06/20'` → **RangeError**（Findings #2）
+- `dateInputToISO` の無効パーティション: `''` / `'abc'` / `'2026-06'` / `'2026-06-20x'` / `'2026/06/20'` / `null` / `undefined` → **`null` を返す**（v2.1.9 で Findings #2 を修正。以前は RangeError を投げていた）
+- `toStoredDateISO`（v2.1.9 追加）: 保存する日付を検証し **ISO 表現へ正規化**する。`recomputeLastReset` と `sortedHistory` が辞書順ソートに依存しているため、`'2026/06/01'` のような別表現が混ざると最新判定が壊れる
 - `formatDateJP`: **これまでテストゼロ**。2026-06-01（月）を起点に**曜日7通り**を網羅、加えて月末・年末・うるう日・ISO 文字列入力
 
 ---
@@ -144,7 +150,7 @@ lastReset = 2026-06-01 / interval = 14 → due = 6/15、primary = 6/14 20:00、r
 
 ### §2-3 引数と本文の同値分割
 
-- `bikeName`: 通常名 / `''`・`null`・`undefined` → 既定名「マイバイク」/ **`'   '`（空白のみ）はそのまま通る**（Findings #5。`setBikeName` / `addBike` は trim しますが [store.js:131](../src/store/store.js#L131) の `normalize` は trim しないため、`importJSON` 経由なら到達します。当初「実運用では到達不能＝不可能列」としたのは誤りでした）
+- `bikeName`: 通常名 / `''`・`null`・`undefined` → 既定名「マイバイク」/ `'   '`（空白のみ）は `planNotifications` 単体では素通りする。v2.1.9 以降 `normalize` が `setBikeName` / `addBike` と同じ trim をするため、保存データには載らない（Findings #5 を修正。真の欠陥箇所は `notify-plan.js` ではなく `store.js` の `normalize` だった）
 - `intervalDays` の本文表記: `14` / `'14'` / `14.4` → 「14日間隔」、`14.6` → 「15日間隔」（`Math.round`）
 - 各 kind のタイトル・本文の完全一致、および**全通知が 20:00 ちょうど**であること
 - `reminderStatus` は同じ表を `none` / `scheduled(primary)` / `scheduled(renudge)` / `overdue` の 4 状態に畳んで再検証。さらに**`reminderStatus.at` が `planNotifications` の先頭と一致する**こと（画面表示と実際の登録の整合）を検証します。
@@ -388,22 +394,25 @@ console.log(chosen.map((c) => c.map((v, i) => F[i][1][v])))
 
 ## Findings
 
-設計中に判明した実装／要件の疑義です。**ソースコードは変更せず**、テストで現行挙動を固定してあります（該当テストに `※Findings #N` のコメントあり）。
+設計中（v2.1.8）に判明した実装／要件の疑義です。当時はテストで現行挙動を固定するにとどめ、
+**v2.1.9 で 8 件すべてを修正しました**（#6 のみコード変更ではなく「削除禁止」の注記）。
+修正時に新たに見つかった #9 も併せて記載しています。
 
 > **深刻度は独立検証後の値です。** 反証を試みる独立検証によって、8 件中 **7 件が下方修正**されました
 > （#1 高→中、#2/#3/#4/#8 中→低、#6/#7 低→情報。#5 のみ「低」で据え置き）。上方修正は 0 件です。
 > 到達経路つきの詳細と、この過大評価が起きた理由は [テスト完了レポート §6・§9](./test-completion-report.md) を参照してください。
 
-| # | 内容 | 箇所 | 深刻度 |
-|---|---|---|---|
-| 1 | **未知の将来バージョンのデータが初期化される。** `version:4` の state は v1 フラット判定にも該当せず `makeDefaultState()` に落ちる。さらに起動時 `persist()` が localStorage を上書きするため**復元不能**。将来 v4 を出した後にユーザーが旧版へ戻ると全記録を失う。 | [store.js:100](../src/store/store.js#L100), [store.js:176](../src/store/store.js#L176) | 中 |
-| 2 | **`dateInputToISO` の不正入力が RangeError を投げる。** Invalid Date に `toISOString()` を呼ぶため。現状は呼び出し側の `value &&` ガード頼み。 | [date.js:116](../src/lib/date.js#L116), [PumpSheet.jsx:73](../src/screens/PumpSheet.jsx#L73), [HistoryScreen.jsx:66](../src/screens/HistoryScreen.jsx#L66) | 低 |
-| 3 | **`editHistory` が日付形式を検証しない。** 不正文字列がそのまま保存され、`recomputeLastReset` の文字列ソートを通じて `lastReset` まで壊れる。 | [store.js:227](../src/store/store.js#L227) | 低 |
-| 4 | **負の `intervalDays` が素通りする。** `Number(x) || 14` は負数を弾かない。`setInterval` は `d < 1` を拒否するが `normalize` は負数を残すため、`importJSON` 経由の外部データが負サイクルを持ち得る（過去日なら overdue、未来日なら soon になり、いずれも実状態と無関係な表示になる）。 | [date.js:39](../src/lib/date.js#L39), [store.js:137](../src/store/store.js#L137) | 低 |
-| 5 | **空白のみの自転車名が trim されない。** `setBikeName` / `addBike` は trim するが [store.js:131](../src/store/store.js#L131) の `normalize` はしないため、`importJSON` 経由で到達する。症状は通知本文だけでなくホーム画面・自転車リスト・削除確認ダイアログにも及ぶ（**真の修正箇所は `notify-plan.js` ではなく `store.js` 側**）。 | [store.js:131](../src/store/store.js#L131), [notify-plan.js:46](../src/lib/notify-plan.js#L46) | 低 |
-| 6 | **内側の `if` は削除禁止の実働ガード。** Date の表現上限付近（`interval ≥ 99979393`）で `renudgeAt` だけが Invalid Date になり、この `if` が偽になる。削除すると Invalid Date が `schedule` に渡り、通知計画全体の登録が失敗する。 | [notify-plan.js:59](../src/lib/notify-plan.js#L59) | 情報 |
-| 7 | **`totalCount` が date 欠損要素も数える。** `sortedHistory().length` と食い違い得る。`normalizeHistory` が保存時に弾くため到達不能。 | [stats.js:44](../src/lib/stats.js#L44) | 情報 |
-| 8 | **`importJSON` がサイレントにデータを消す。** `looksLikeData` は `bikes` が配列でありさえすれば通すが、`migrate` が version 不一致で初期 state に落とすため、`ok:true` を返しながら既存データが消える。 | [store.js:315](../src/store/store.js#L315) | 低 |
+| # | 内容 | 箇所 | 深刻度 | v2.1.9 での対応 |
+|---|---|---|---|---|
+| 1 | **未知の将来バージョンのデータが初期化される。** `version:4` の state は v1 フラット判定にも該当せず `makeDefaultState()` に落ちる。さらに起動時 `persist()` が localStorage を上書きするため**復元不能**。将来 v4 を出した後にユーザーが旧版へ戻ると全記録を失う。 | [store.js:100](../src/store/store.js#L100), [store.js:176](../src/store/store.js#L176) | 中 | `migrate` はバージョン番号を見ず bikes の形で判定。`load` が由来を返し、解釈できなかったデータは**上書きしない** |
+| 2 | **`dateInputToISO` の不正入力が RangeError を投げる。** Invalid Date に `toISOString()` を呼ぶため。現状は呼び出し側の `value &&` ガード頼み。 | [date.js:116](../src/lib/date.js#L116), [PumpSheet.jsx:73](../src/screens/PumpSheet.jsx#L73), [HistoryScreen.jsx:66](../src/screens/HistoryScreen.jsx#L66) | 低 | 例外ではなく `null` を返す。呼び出し側2箇所も戻り値で判定 |
+| 3 | **`editHistory` が日付形式を検証しない。** 不正文字列がそのまま保存され、`recomputeLastReset` の文字列ソートを通じて `lastReset` まで壊れる。 | [store.js:227](../src/store/store.js#L227) | 低 | `toStoredDateISO` で検証・正規化。`pump` も同様 |
+| 4 | **負の `intervalDays` が素通りする。** `Number(x) || 14` は負数を弾かない。`setInterval` は `d < 1` を拒否するが `normalize` は負数を残すため、`importJSON` 経由の外部データが負サイクルを持ち得る（過去日なら overdue、未来日なら soon になり、いずれも実状態と無関係な表示になる）。 | [date.js:39](../src/lib/date.js#L39), [store.js:137](../src/store/store.js#L137) | 低 | `normalize` が `normalizeIntervalDays` で 1 以上の整数へ矯正（`date.js:39` は**意図的に変更せず**。触ると M06 を殺す唯一のテストが等価ミュータント化する） |
+| 5 | **空白のみの自転車名が trim されない。** `setBikeName` / `addBike` は trim するが [store.js:131](../src/store/store.js#L131) の `normalize` はしないため、`importJSON` 経由で到達する。症状は通知本文だけでなくホーム画面・自転車リスト・削除確認ダイアログにも及ぶ（**真の修正箇所は `notify-plan.js` ではなく `store.js` 側**）。 | [store.js:131](../src/store/store.js#L131), [notify-plan.js:46](../src/lib/notify-plan.js#L46) | 低 | `normalize` が `setBikeName` / `addBike` と同じ trim をする |
+| 6 | **内側の `if` は削除禁止の実働ガード。** Date の表現上限付近（`interval ≥ 99979393`）で `renudgeAt` だけが Invalid Date になり、この `if` が偽になる。削除すると Invalid Date が `schedule` に渡り、通知計画全体の登録が失敗する。 | [notify-plan.js:59](../src/lib/notify-plan.js#L59) | 情報 | コードに「削除禁止」のコメント。境界5点をテストで固定 |
+| 7 | **`totalCount` が date 欠損要素も数える。** `sortedHistory().length` と食い違い得る。`normalizeHistory` が保存時に弾くため到達不能。 | [stats.js:44](../src/lib/stats.js#L44) | 情報 | `sortedHistory(history).length` に変更 |
+| 8 | **`importJSON` がサイレントにデータを消す。** `looksLikeData` は `bikes` が配列でありさえすれば通すが、`migrate` が version 不一致で初期 state に落とすため、`ok:true` を返しながら既存データが消える。 | [store.js:315](../src/store/store.js#L315) | 低 | 受理条件を `canMigrate` / `hasRestorableData` に統一。空のバックアップは専用メッセージで拒否 |
+| 9 | **`normalize` が `{"bikes":[null]}` で TypeError を投げる。** `importJSON` の `commit` は try の外にあるため、例外が `SettingsScreen` の `reader.onload` まで抜け、成功トーストもエラートーストも出ない。**v2.1.9 の設計中に発見**（v2.1.8 時点で既に存在した実バグ）。 | [store.js](../src/store/store.js) | 低 | `bikes` / `items` の非オブジェクト要素を間引く。`importJSON` の `commit` も try で包む |
 
 ---
 

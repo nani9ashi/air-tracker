@@ -33,7 +33,7 @@ export function getLimits(s = state) {
 }
 
 // アプリ表示バージョン（設定フッター等で使用）。
-export const APP_VERSION = '2.1.8'
+export const APP_VERSION = '2.1.9'
 
 // 履歴エントリ用の安定 ID。
 let __idSeq = 0
