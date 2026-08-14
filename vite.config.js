@@ -10,10 +10,28 @@ export default defineConfig(({ mode }) => {
   const native = mode === 'capacitor'
   return {
     base: './',
-    // Vitest 設定（純粋ロジックのユニットテスト）。store.js が localStorage を触るため jsdom。
+    // Vitest 設定。store.js が localStorage を触るため jsdom。
+    // globals:true は RTL の自動 cleanup（afterEach）にも効いている。
     test: {
       environment: 'jsdom',
       globals: true,
+      setupFiles: ['./src/test/setup.js'],
+      coverage: {
+        provider: 'v8',
+        // thresholds は置かない。狙いは「未到達分岐を説明できること」
+        // （docs/test-completion-report.md 完了基準 #6）であって率の達成ではない。
+        // 数値ゲートにすると、説明の代わりに帳尻合わせのテストが増える。
+        reporter: ['text-summary', 'html'],
+        reportsDirectory: './coverage',
+        include: ['src/**/*.{js,jsx}'],
+        exclude: [
+          'src/**/*.test.{js,jsx}',
+          'src/test/**',
+          'src/main.jsx',
+          'src/fonts-native.js',
+          'src/screens/PreviewScreen.jsx', // dev 専用のコンポーネントカタログ
+        ],
+      },
     },
     plugins: [
       react(),
