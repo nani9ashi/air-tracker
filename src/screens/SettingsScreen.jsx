@@ -3,6 +3,8 @@ import GlassCard from '../components/GlassCard.jsx'
 import Icon from '../components/Icon.jsx'
 import QuukiMark from '../components/QuukiMark.jsx'
 import Toast from '../components/Toast.jsx'
+import PromptSheet from '../components/PromptSheet.jsx'
+import ConfirmSheet from '../components/ConfirmSheet.jsx'
 import { useStore } from '../store/useStore.js'
 import {
   getActiveBike,
@@ -36,6 +38,8 @@ export default function SettingsScreen() {
   const backupLocked = !limits.backup
 
   const [name, setName] = useState(bike.name)
+  const [addOpen, setAddOpen] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
   const [toast, setToast] = useState(null)
   const fileRef = useRef(null)
   const toastTimer = useRef(0)
@@ -65,18 +69,10 @@ export default function SettingsScreen() {
       showToast('複数の自転車はProで解放されます')
       return
     }
-    const n = window.prompt('追加する自転車の名前', '')
-    if (n && n.trim()) {
-      addBike(n.trim())
-      showToast('自転車を追加しました')
-    }
+    setAddOpen(true)
   }
   const handleDeleteBike = () => {
-    if (!canDelete) return
-    if (window.confirm(`「${bike.name}」を削除しますか？記録もすべて消えます。`)) {
-      removeBike(bike.id)
-      showToast('自転車を削除しました')
-    }
+    if (canDelete) setDeleteOpen(true)
   }
 
   const handleExport = () => {
@@ -256,6 +252,32 @@ export default function SettingsScreen() {
           </div>
         </footer>
       </main>
+
+      <PromptSheet
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        title="自転車を追加"
+        label="名前"
+        maxLength={20}
+        placeholder="例: 通勤号"
+        confirmLabel="追加する"
+        onConfirm={(n) => {
+          addBike(n)
+          setAddOpen(false)
+          showToast('自転車を追加しました')
+        }}
+      />
+      <ConfirmSheet
+        open={deleteOpen}
+        onClose={() => setDeleteOpen(false)}
+        title="自転車を削除"
+        message={`「${bike.name}」を削除しますか？記録もすべて消えます。`}
+        onConfirm={() => {
+          removeBike(bike.id)
+          setDeleteOpen(false)
+          showToast('自転車を削除しました')
+        }}
+      />
 
       <Toast show={!!toast} message={toast} />
     </div>

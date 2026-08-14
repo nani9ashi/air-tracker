@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Sheet from '../components/Sheet.jsx'
 import Icon from '../components/Icon.jsx'
+import { PromptForm } from '../components/PromptSheet.jsx'
 import { useStore } from '../store/useStore.js'
 import { setActiveBike, addBike, getLimits } from '../store/store.js'
 import { track, EV } from '../lib/analytics.js'
@@ -18,6 +19,13 @@ export default function BikeSheet({ open, onClose }) {
   const activeId = state.settings.activeBikeId
   const addLocked = bikes.length >= getLimits(state).bikes
   const [showPremium, setShowPremium] = useState(false)
+  // このシート自身が Sheet なので、追加の入力は入れ子の Sheet ではなく
+  // 本体の差し替えで出す（入れ子にすると背景タップ・Escape が二重に効く）。
+  const [mode, setMode] = useState('list')
+
+  useEffect(() => {
+    if (!open) setMode('list')
+  }, [open])
 
   const pick = (id) => {
     setActiveBike(id)
@@ -30,11 +38,25 @@ export default function BikeSheet({ open, onClose }) {
       setShowPremium(true)
       return
     }
-    const name = window.prompt('自転車の名前', '')
-    if (name && name.trim()) {
-      addBike(name.trim())
-      onClose()
-    }
+    setMode('add')
+  }
+
+  if (mode === 'add') {
+    return (
+      <Sheet open={open} onClose={onClose} title="自転車を追加">
+        <PromptForm
+          label="名前"
+          maxLength={20}
+          placeholder="例: 通勤号"
+          confirmLabel="追加する"
+          onConfirm={(name) => {
+            addBike(name)
+            onClose()
+          }}
+          onCancel={() => setMode('list')}
+        />
+      </Sheet>
+    )
   }
 
   return (

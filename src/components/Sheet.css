@@ -105,6 +105,40 @@
   gap: 10px;
 }
 
+/* 共有：シート内のテキスト入力（PromptSheet / PromptForm） */
+.sheet-input {
+  width: 100%;
+  min-height: var(--control-h-md);
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--glass-fill-light);
+  border: 1px solid var(--glass-border);
+  color: var(--text-primary);
+  font-family: var(--font-jp);
+  font-size: var(--fs-body);
+}
+.sheet-input:focus {
+  border-color: var(--accent);
+}
+
+.prompt-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.prompt-form__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.prompt-form__label {
+  color: var(--text-secondary);
+}
+/* フォーム内ではキャンセルの上の余白は gap が担うので二重に空けない */
+.prompt-form .sheet-cancel {
+  margin-top: 0;
+}
+
 .sheet-cancel {
   width: 100%;
   margin-top: 14px;

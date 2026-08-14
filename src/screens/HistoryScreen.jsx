@@ -23,6 +23,9 @@ export default function HistoryScreen() {
   const [editing, setEditing] = useState(null)
   const [editValue, setEditValue] = useState('')
   const [showUpsell, setShowUpsell] = useState(false)
+  // 編集シートは既に Sheet なので、削除確認は入れ子の Sheet ではなく
+  // シート本体の差し替えで出す。
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   const rows = useMemo(() => {
     const asc = sortedHistory(item.history)
@@ -61,17 +64,18 @@ export default function HistoryScreen() {
     setEditing(row)
     setEditValue(toDateInputValue(new Date(row.date)))
   }
-  const closeEdit = () => setEditing(null)
+  const closeEdit = () => {
+    setEditing(null)
+    setConfirmDelete(false)
+  }
   const saveEdit = () => {
     const iso = dateInputToISO(editValue)
     if (editing && iso) editHistory(editing.id, iso)
     closeEdit()
   }
   const deleteEntry = () => {
-    if (editing && window.confirm('この記録を削除しますか？')) {
-      removeHistory(editing.id)
-      closeEdit()
-    }
+    if (editing) removeHistory(editing.id)
+    closeEdit()
   }
 
   return (
@@ -182,28 +186,57 @@ export default function HistoryScreen() {
         </GlassCard>
       </main>
 
-      <Sheet open={!!editing} onClose={closeEdit} title="記録を編集">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-            <label className="cad-label" htmlFor="edit-date" style={{ color: 'var(--text-secondary)' }}>
-              日付
-            </label>
-            <input
-              id="edit-date"
-              type="date"
-              className="date-input"
-              value={editValue}
-              max={toDateInputValue()}
-              onChange={(e) => setEditValue(e.target.value)}
-            />
+      <Sheet
+        open={!!editing}
+        onClose={closeEdit}
+        title={confirmDelete ? '記録を削除' : '記録を編集'}
+        subtitle={
+          confirmDelete && editing
+            ? `${editing.dateLabel}${editing.weekday} の記録を削除しますか？`
+            : undefined
+        }
+      >
+        {confirmDelete ? (
+          <>
+            <div className="sheet-list">
+              <button type="button" className="sheet-opt sheet-opt--danger" onClick={deleteEntry}>
+                <span className="sheet-opt__icon"><Icon name="trash-2" size={22} /></span>
+                <span className="sheet-opt__label">削除する</span>
+              </button>
+            </div>
+            <button type="button" className="sheet-cancel" onClick={() => setConfirmDelete(false)}>
+              キャンセル
+            </button>
+          </>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+              <label className="cad-label" htmlFor="edit-date" style={{ color: 'var(--text-secondary)' }}>
+                日付
+              </label>
+              <input
+                id="edit-date"
+                type="date"
+                className="date-input"
+                value={editValue}
+                max={toDateInputValue()}
+                onChange={(e) => setEditValue(e.target.value)}
+              />
+            </div>
+            <Button variant="energy" size="md" block iconLeft={<Icon name="check" size={18} />} onClick={saveEdit}>
+              保存
+            </Button>
+            <Button
+              variant="ghost"
+              size="md"
+              block
+              iconLeft={<Icon name="trash-2" size={18} />}
+              onClick={() => setConfirmDelete(true)}
+            >
+              削除
+            </Button>
           </div>
-          <Button variant="energy" size="md" block iconLeft={<Icon name="check" size={18} />} onClick={saveEdit}>
-            保存
-          </Button>
-          <Button variant="ghost" size="md" block iconLeft={<Icon name="trash-2" size={18} />} onClick={deleteEntry}>
-            削除
-          </Button>
-        </div>
+        )}
       </Sheet>
     </div>
   )
