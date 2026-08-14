@@ -65,7 +65,6 @@ export default function SettingsScreen() {
   const handleAddBike = () => {
     if (addLocked) {
       track(EV.PAYWALL, { source: 'settings_add_bike' })
-      // 表示はPro（テスター整合）。内部は premium ゲート。⚠1b-2 で要再整合。
       showToast('複数の自転車はProで解放されます')
       return
     }

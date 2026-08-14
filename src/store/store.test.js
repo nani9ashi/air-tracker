@@ -113,12 +113,17 @@ describe('getLimits / normalizePlan', () => {
       bikes: 1, history: 3, heatmapWeeks: 5, customCycle: false, backup: false,
     })
   })
-  it('pro の上限（履歴全件・全期間・カスタム/バックアップ可・台数は1）', () => {
+  it('pro の上限（履歴全件・全期間・カスタム/バックアップ/複数台 可）', () => {
     expect(getLimits({ settings: { plan: 'pro' } })).toEqual({
-      bikes: 1, history: Infinity, heatmapWeeks: 'auto', customCycle: true, backup: true,
+      bikes: Infinity, history: Infinity, heatmapWeeks: 'auto', customCycle: true, backup: true,
     })
   })
-  it('premium は複数台可', () => {
+  it('premium も複数台可（v2.2.0 以降 pro と同値）', () => {
+    expect(getLimits({ settings: { plan: 'premium' } })).toEqual(PLAN_LIMITS.pro)
+  })
+  it('複数台は pro 以上、無料は1台（v2.2.0 で文言と実装を整合）', () => {
+    expect(getLimits({ settings: { plan: 'free' } }).bikes).toBe(1)
+    expect(getLimits({ settings: { plan: 'pro' } }).bikes).toBe(Infinity)
     expect(getLimits({ settings: { plan: 'premium' } }).bikes).toBe(Infinity)
   })
   it('壊れた入力は free 上限', () => {

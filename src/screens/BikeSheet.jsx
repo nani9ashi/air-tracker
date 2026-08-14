@@ -9,9 +9,7 @@ import './BikeSheet.css'
 
 /**
  * 自転車の切替・追加シート（ホームヘッダから開く）。
- * 複数自転車は内部的に Premium ゲート（free/pro は1台）。
- * ただし表示上は他ロックと揃えて「Proで解放」と案内する（テスター整合）。
- * ⚠ 1b-2 のペイウォール実装時に要再整合（Pro購入では複数台は解放されない）。
+ * 複数台は Pro 以上で解放（PLAN_LIMITS）。無料は1台。
  */
 export default function BikeSheet({ open, onClose }) {
   const state = useStore()
