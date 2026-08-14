@@ -32,7 +32,7 @@ export default function PreviewScreen() {
   }
 
   return (
-    <div style={{ padding: 'var(--gutter-screen)', paddingBottom: 'calc(var(--bottom-nav-h) + var(--space-8))' }}>
+    <div style={{ padding: 'var(--gutter-screen)', paddingBottom: 'calc(var(--bottom-nav-total) + var(--space-8))' }}>
       <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-6)' }}>
         <h1 className="cad-h2">Components</h1>
         <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>

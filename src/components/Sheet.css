@@ -25,7 +25,7 @@
   border-top-right-radius: 28px;
   border-top: 1px solid var(--glass-border);
   box-shadow: var(--shadow-lg);
-  padding: 18px var(--gutter-screen) calc(var(--space-6) + env(safe-area-inset-bottom, 0));
+  padding: 18px var(--gutter-screen) calc(var(--space-6) + var(--safe-bottom));
   animation: cad-sheet 0.28s var(--ease-out) both;
 }
 
