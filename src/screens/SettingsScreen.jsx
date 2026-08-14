@@ -18,7 +18,7 @@ import {
   setPlan,
   APP_VERSION,
 } from '../store/store.js'
-import { toDateInputValue } from '../lib/date.js'
+import { exportBackup } from '../lib/backup.js'
 import { track, EV } from '../lib/analytics.js'
 import './SettingsScreen.css'
 
@@ -74,23 +74,21 @@ export default function SettingsScreen() {
     if (canDelete) setDeleteOpen(true)
   }
 
-  const handleExport = () => {
+  const handleExport = async () => {
     if (backupLocked) {
       track(EV.PAYWALL, { source: 'backup_export' })
       showToast('バックアップはProで解放されます')
       return
     }
-    const blob = new Blob([exportJSON()], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `quuki-backup-${toDateInputValue()}.json`
-    document.body.appendChild(a)
-    a.click()
-    a.remove()
-    URL.revokeObjectURL(url)
-    showToast('バックアップを書き出しました')
+    const res = await exportBackup(exportJSON())
+    if (res.ok) showToast('バックアップを書き出しました')
+    else if (res.reason === 'cancelled') return // 自分でやめた操作にトーストは出さない
+    else showToast('バックアップを書き出せませんでした')
   }
+  // ⚠ 読み込み側は変更不要。<input type=file> は Capacitor の
+  // BridgeWebChromeClient.onShowFileChooser が SAF ピッカーへ橋渡しするので
+  // native でも動く（accept も EXTRA_MIME_TYPES として渡る）。
+  // 書き出しと違って自前の経路は要らない。
   const handleImportFile = (e) => {
     const file = e.target.files?.[0]
     e.target.value = ''
