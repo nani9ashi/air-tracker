@@ -15,6 +15,7 @@ import {
 import { reminderStatus } from '../lib/notify-plan.js'
 import PumpSheet from './PumpSheet.jsx'
 import BikeSheet from './BikeSheet.jsx'
+import PromptSheet from '../components/PromptSheet.jsx'
 import { useStore } from '../store/useStore.js'
 import {
   getActiveBike,
@@ -35,6 +36,14 @@ const HERO = {
   soon: { icon: 'clock', label: 'そろそろ', tone: 'warning' },
   overdue: { icon: 'alert-triangle', label: '空気入れどき', tone: 'danger' },
   unset: { icon: 'bike', label: '未記録', tone: 'accent' },
+}
+
+// カスタム間隔の受理条件。window.prompt 時代と同一（Number → isFinite && >=1 → round）。
+// 不正値は null を返し、決定ボタンが disabled になる。
+// 旧実装は不正値でもダイアログが閉じて黙って no-op だったので、そこだけ挙動が変わる。
+export function parseCycle(raw) {
+  const v = Number(raw)
+  return Number.isFinite(v) && v >= 1 ? Math.round(v) : null
 }
 
 function heroMessage(status) {
@@ -59,6 +68,7 @@ export default function HomeScreen({ onTab }) {
 
   const [sheetOpen, setSheetOpen] = useState(false)
   const [bikeSheetOpen, setBikeSheetOpen] = useState(false)
+  const [cycleSheetOpen, setCycleSheetOpen] = useState(false)
   const [showPremium, setShowPremium] = useState(false)
   // 通知が有効（native＆許可済み）か。予約の可視化インラインの表示可否に使う。
   const [notifOn, setNotifOn] = useState(false)
@@ -102,12 +112,7 @@ export default function HomeScreen({ onTab }) {
       setShowPremium((v) => !v)
       return
     }
-    const input = window.prompt('カスタム間隔（日数）', String(item.intervalDays))
-    const v = Number(input)
-    if (Number.isFinite(v) && v >= 1) {
-      setCycle(Math.round(v))
-      syncActiveReminder({ userAction: true })
-    }
+    setCycleSheetOpen(true)
   }
 
   // リング中央（白文字・色だけに頼らず数字＋ラベル）。
@@ -238,6 +243,23 @@ export default function HomeScreen({ onTab }) {
 
       <PumpSheet open={sheetOpen} onClose={() => setSheetOpen(false)} onConfirm={onConfirmPump} />
       <BikeSheet open={bikeSheetOpen} onClose={() => setBikeSheetOpen(false)} />
+      <PromptSheet
+        open={cycleSheetOpen}
+        onClose={() => setCycleSheetOpen(false)}
+        title="カスタム間隔"
+        subtitle="空気を入れる間隔を日数で指定します。"
+        label="日数"
+        type="number"
+        inputMode="numeric"
+        defaultValue={String(item.intervalDays)}
+        confirmLabel="この間隔にする"
+        parse={parseCycle}
+        onConfirm={(days) => {
+          setCycle(days)
+          syncActiveReminder({ userAction: true }) // 周期変更→再スケジュール
+          setCycleSheetOpen(false)
+        }}
+      />
     </div>
   )
 }

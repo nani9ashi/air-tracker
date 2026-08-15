@@ -146,7 +146,28 @@
 
   /* ===== レイアウト ===== */
   --screen-max: 420px;    /* モバイルキャンバス幅 */
-  --bottom-nav-h: 76px;
+  --bottom-nav-h: 76px;   /* 下タブの「操作領域」。システムバーぶんの下駄は含まない */
+
+  /* ===== セーフエリア（edge-to-edge） =====
+     ⚠ calc() の中で使うので fallback は 0 ではなく 0px。無単位 0 は
+        calc(76px + 0) を型不一致で無効値にし、宣言ごと落とす。
+     ⚠ Capacitor が <html> のインラインスタイルに注入する --safe-area-inset-*
+        とは併用しないこと。SystemBars(insetsHandling:'css') は WebView>=140 かつ
+        viewport-fit=cover のときだけ実インセットを env() に通し、それ以外は
+        WebView の親 View を padding して env() を 0 にする。定常状態では注入値も
+        0 で一致するが、load() 時の初期注入（initSafeAreaCSSVariables）だけは
+        実値を書くため、起動直後に「WebView は既に押し下げられているのに変数だけ
+        48px」という窓がある。しかも <html> のインラインなので :root では上書き
+        できない。env() 単独が唯一の正解。
+     ⚠ 名前を Capacitor 側とあえて変えてあるのは、後から「統一」されるのを
+        防ぐため。 */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+
+  /* 画面下端 → 下タブの操作領域の上端までの高さ。
+     各画面の下余白・トーストの浮き位置はすべてこれを基準にする。
+     ⚠ --bottom-nav-h を直接 calc() に入れてはいけない（インセットが抜ける）。 */
+  --bottom-nav-total: calc(var(--bottom-nav-h) + var(--safe-bottom));
 
   /* ===== 角丸 ===== */
   --radius-xs: 8px; --radius-sm: 12px; --radius-md: 16px;

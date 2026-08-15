@@ -5,13 +5,18 @@
   transform: translateX(-50%);
   width: 100%;
   max-width: var(--screen-max);
-  height: var(--bottom-nav-h);
+  /* box-sizing:border-box なので padding-bottom は height の内側を食う。
+     height にも同じインセットを足して初めて操作領域 76px が残る。
+     v2.1.9 まではこれが無く、3ボタンナビ(48dp)では content box が 28px まで
+     潰れて、アイコン38px+gap4px+ラベル の縦積みが溢れ、ラベルがシステムナビの
+     下に沈んでいた。背景はこの高さぶん伸びるのでガラス面はシステムバーの裏まで続く。 */
+  height: var(--bottom-nav-total);
   display: flex;
   align-items: center;
   justify-content: space-around;
   gap: var(--space-1);
   padding: 0 var(--space-3);
-  padding-bottom: env(safe-area-inset-bottom, 0);
+  padding-bottom: var(--safe-bottom);
   background: var(--glass-fill-strong);
   -webkit-backdrop-filter: blur(var(--blur-strong));
   backdrop-filter: blur(var(--blur-strong));
@@ -21,6 +26,9 @@
 
 .bottom-nav__btn {
   flex: 1;
+  /* % 高さは親の content box（= --bottom-nav-h − border-top 1px）に対する割合。
+     下駄は padding なので 100% には含まれず、ボタンはシステムバーに乗らない。
+     ⚠ 固定値に書き換えるなら calc(var(--bottom-nav-h) - 1px)。 */
   height: 100%;
   display: flex;
   flex-direction: column;

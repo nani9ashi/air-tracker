@@ -320,7 +320,7 @@ describe('ST-invalid: 自転車操作の無効遷移', () => {
   })
 
   // store 層はプラン上限を強制しない。ゲートは UI 層のみ
-  // （BikeSheet.jsx:19 / SettingsScreen.jsx:35）。この設計を明示的に固定する。
+  // （BikeSheet / SettingsScreen の addLocked）。この設計を明示的に固定する。
   it.each([['free'], ['pro'], ['premium']])(
     'ST: store は plan=%s でも addBike を拒否しない（上限は UI 層のゲート）',
     async (plan) => {
@@ -328,7 +328,8 @@ describe('ST-invalid: 自転車操作の無効遷移', () => {
       s.setPlan(plan)
       s.addBike('2台目')
       expect(s.getState().bikes).toHaveLength(2)
-      expect(s.getLimits(s.getState()).bikes).toBe(plan === 'premium' ? Infinity : 1)
+      // v2.2.0: 複数台は pro 以上で解放（無料のみ 1 台）。
+      expect(s.getLimits(s.getState()).bikes).toBe(plan === 'free' ? 1 : Infinity)
     },
   )
 })

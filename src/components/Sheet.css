@@ -25,7 +25,7 @@
   border-top-right-radius: 28px;
   border-top: 1px solid var(--glass-border);
   box-shadow: var(--shadow-lg);
-  padding: 18px var(--gutter-screen) calc(var(--space-6) + env(safe-area-inset-bottom, 0));
+  padding: 18px var(--gutter-screen) calc(var(--space-6) + var(--safe-bottom));
   animation: cad-sheet 0.28s var(--ease-out) both;
 }
 
@@ -103,6 +103,40 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+/* 共有：シート内のテキスト入力（PromptSheet / PromptForm） */
+.sheet-input {
+  width: 100%;
+  min-height: var(--control-h-md);
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--glass-fill-light);
+  border: 1px solid var(--glass-border);
+  color: var(--text-primary);
+  font-family: var(--font-jp);
+  font-size: var(--fs-body);
+}
+.sheet-input:focus {
+  border-color: var(--accent);
+}
+
+.prompt-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.prompt-form__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.prompt-form__label {
+  color: var(--text-secondary);
+}
+/* フォーム内ではキャンセルの上の余白は gap が担うので二重に空けない */
+.prompt-form .sheet-cancel {
+  margin-top: 0;
 }
 
 .sheet-cancel {

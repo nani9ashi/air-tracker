@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Sheet from '../components/Sheet.jsx'
 import Icon from '../components/Icon.jsx'
+import { PromptForm } from '../components/PromptSheet.jsx'
 import { useStore } from '../store/useStore.js'
 import { setActiveBike, addBike, getLimits } from '../store/store.js'
 import { track, EV } from '../lib/analytics.js'
@@ -8,9 +9,7 @@ import './BikeSheet.css'
 
 /**
  * 自転車の切替・追加シート（ホームヘッダから開く）。
- * 複数自転車は内部的に Premium ゲート（free/pro は1台）。
- * ただし表示上は他ロックと揃えて「Proで解放」と案内する（テスター整合）。
- * ⚠ 1b-2 のペイウォール実装時に要再整合（Pro購入では複数台は解放されない）。
+ * 複数台は Pro 以上で解放（PLAN_LIMITS）。無料は1台。
  */
 export default function BikeSheet({ open, onClose }) {
   const state = useStore()
@@ -18,6 +17,13 @@ export default function BikeSheet({ open, onClose }) {
   const activeId = state.settings.activeBikeId
   const addLocked = bikes.length >= getLimits(state).bikes
   const [showPremium, setShowPremium] = useState(false)
+  // このシート自身が Sheet なので、追加の入力は入れ子の Sheet ではなく
+  // 本体の差し替えで出す（入れ子にすると背景タップ・Escape が二重に効く）。
+  const [mode, setMode] = useState('list')
+
+  useEffect(() => {
+    if (!open) setMode('list')
+  }, [open])
 
   const pick = (id) => {
     setActiveBike(id)
@@ -30,11 +36,25 @@ export default function BikeSheet({ open, onClose }) {
       setShowPremium(true)
       return
     }
-    const name = window.prompt('自転車の名前', '')
-    if (name && name.trim()) {
-      addBike(name.trim())
-      onClose()
-    }
+    setMode('add')
+  }
+
+  if (mode === 'add') {
+    return (
+      <Sheet open={open} onClose={onClose} title="自転車を追加">
+        <PromptForm
+          label="名前"
+          maxLength={20}
+          placeholder="例: 通勤号"
+          confirmLabel="追加する"
+          onConfirm={(name) => {
+            addBike(name)
+            onClose()
+          }}
+          onCancel={() => setMode('list')}
+        />
+      </Sheet>
+    )
   }
 
   return (

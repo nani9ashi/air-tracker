@@ -17,7 +17,14 @@ const PRESET_INTERVALS = [7, 14, 21, 28]
 // 注: Infinity はコード上のみ。localStorage には settings.plan（文字列）だけが載る。
 export const PLAN_LIMITS = {
   free: { bikes: 1, history: 3, heatmapWeeks: 5, customCycle: false, backup: false },
-  pro: { bikes: 1, history: Infinity, heatmapWeeks: 'auto', customCycle: true, backup: true },
+  // v2.2.0: 複数台を Pro で解放。UI は以前から「複数の自転車はProで解放されます」と
+  // 案内していたのに pro.bikes が 1 で解放されない、という不整合があった
+  // （docs/test-completion-report.md §12 の最優先残存リスク）。文言側ではなく
+  // 上限側を動かして解消している。
+  pro: { bikes: Infinity, history: Infinity, heatmapWeeks: 'auto', customCycle: true, backup: true },
+  // ⚠ この時点で premium は pro と完全に同値。観測可能な差を持たない段になった。
+  //   差別化は未実装の「複数メンテ項目」に移っており、それを作るまでは
+  //   premium を売る根拠が無い（1b-2 のペイウォール実装前に決着させること）。
   premium: { bikes: Infinity, history: Infinity, heatmapWeeks: 'auto', customCycle: true, backup: true },
 }
 export const PLANS = ['free', 'pro', 'premium']
@@ -33,7 +40,7 @@ export function getLimits(s = state) {
 }
 
 // アプリ表示バージョン（設定フッター等で使用）。
-export const APP_VERSION = '2.1.9'
+export const APP_VERSION = '2.2.0'
 
 // 履歴エントリ用の安定 ID。
 let __idSeq = 0

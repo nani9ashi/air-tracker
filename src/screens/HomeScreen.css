@@ -3,7 +3,7 @@
   display: flex;
   flex-direction: column;
   padding: 0 var(--gutter-screen);
-  padding-bottom: calc(var(--bottom-nav-h) + var(--space-6));
+  padding-bottom: calc(var(--bottom-nav-total) + var(--space-6));
 }
 
 /* ---- header ---- */
@@ -14,7 +14,7 @@
   gap: var(--space-3);
   padding: var(--space-3) 0 var(--space-4);
   /* ステータスバー(edge-to-edge)食い込み回避 */
-  padding-top: calc(var(--space-3) + env(safe-area-inset-top, 0));
+  padding-top: calc(var(--space-3) + var(--safe-top));
 }
 .home__id {
   min-width: 0;
