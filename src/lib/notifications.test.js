@@ -32,7 +32,12 @@ vi.mock('../store/store.js', () => ({
   getActiveAirItem: () => fx.item,
 }))
 
-import { syncActiveReminder, requestPermissionAfterReset, isNotificationEnabled } from './notifications.js'
+import {
+  syncActiveReminder,
+  requestPermissionAfterReset,
+  isNotificationEnabled,
+  fireTestNotification,
+} from './notifications.js'
 
 // 2026-06-01 に空気入れ、14日間隔 → 予定日 6/15、前夜通知 6/14 20:00、念押し 6/17 20:00。
 const RESET = new Date(2026, 5, 1, 12).toISOString()
@@ -211,5 +216,53 @@ describe('isNotificationEnabled', () => {
     await expect(isNotificationEnabled()).resolves.toBe(false)
     checkPermissions.mockRejectedValueOnce(new Error('boom'))
     await expect(isNotificationEnabled()).resolves.toBe(false)
+  })
+})
+
+describe('fireTestNotification — 1a-2残の実機検証用（dev限定）', () => {
+  // ⚠ import.meta.env.DEV は vitest 実行時は常に true（mode='test' で
+  //   production ではない）。ここでは DEV=true 前提の分岐だけを検証する。
+  //   本番ビルドから消えることは ripgrep によるバンドル検査で別途確認する
+  //   （notifications.js のソースにも二重ガードがある）。
+
+  it('許可済みなら1分後の Date で schedule し、専用スロットの ID を使う', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2026, 5, 2, 9, 0, 0))
+    const res = await fireTestNotification()
+    expect(res.ok).toBe(true)
+    expect(res.at.getTime()).toBe(new Date(2026, 5, 2, 9, 1, 0).getTime())
+
+    expect(schedule).toHaveBeenCalledOnce()
+    const n = schedule.mock.calls[0][0].notifications[0]
+    // 本番の syncActiveReminder（allowWhileIdle/smallIcon）と同形であること。
+    // ここが違うと「テストは届くのに本番は届かない」が起こり得て検証にならない。
+    expect(n.schedule).toMatchObject({ allowWhileIdle: true })
+    expect(n.schedule.at.getTime()).toBe(res.at.getTime())
+    expect(n.smallIcon).toBe('ic_stat_quuki')
+
+    // 実データ（primary/renudge）のスロットと衝突しない専用 ID。
+    await syncActiveReminder()
+    const realIds = new Set(cancel.mock.calls.at(-1)[0].notifications.map((x) => x.id))
+    expect(realIds.has(n.id)).toBe(false)
+  })
+
+  it('cancel は呼ばない（実データの予約を上書きしない）', async () => {
+    await fireTestNotification()
+    expect(cancel).not.toHaveBeenCalled()
+  })
+
+  it('権限が未許可なら permission-denied で schedule しない', async () => {
+    checkPermissions.mockResolvedValue({ display: 'denied' })
+    const res = await fireTestNotification()
+    expect(res).toEqual({ ok: false, reason: 'permission-denied' })
+    expect(schedule).not.toHaveBeenCalled()
+  })
+
+  it('schedule が reject しても throw せず failed を返す', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    schedule.mockRejectedValueOnce(new Error('boom'))
+    await expect(fireTestNotification()).resolves.toEqual({ ok: false, reason: 'failed' })
+    expect(warn).toHaveBeenCalled()
+    warn.mockRestore()
   })
 })
