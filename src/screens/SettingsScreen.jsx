@@ -19,6 +19,7 @@ import {
   APP_VERSION,
 } from '../store/store.js'
 import { exportBackup } from '../lib/backup.js'
+import { fireTestNotification } from '../lib/notifications.js'
 import { track, EV } from '../lib/analytics.js'
 import './SettingsScreen.css'
 
@@ -112,6 +113,23 @@ export default function SettingsScreen() {
       const next = order[(order.indexOf(state.settings.plan) + 1) % order.length]
       setPlan(next)
       showToast(`開発: プラン = ${next}`)
+    }
+  }
+
+  // 開発時のみ: 通知の実機到達確認（1a-2残）。1分後に本番と同形の通知を発火する。
+  // 推奨サイクルが7〜28日と長く、通常の操作フローでは何日も待たないと
+  // 確認できないため、実機検証をこのボタンだけで完結させる。
+  const [testNotifStatus, setTestNotifStatus] = useState('idle') // 'idle'|'sending'|'sent'|'error'
+  const handleFireTestNotification = async () => {
+    if (!import.meta.env.DEV) return
+    setTestNotifStatus('sending')
+    const res = await fireTestNotification()
+    if (res.ok) {
+      setTestNotifStatus('sent')
+      showToast(`開発: テスト通知を ${res.at.toLocaleTimeString('ja-JP')} に予約`)
+    } else {
+      setTestNotifStatus('error')
+      showToast(`開発: テスト通知を送れませんでした（${res.reason}）`)
     }
   }
 
@@ -240,6 +258,29 @@ export default function SettingsScreen() {
               : 'インポートは現在のデータを置き換えます。'}
           </p>
         </section>
+
+        {/* 開発ツール: 本番ビルドでは import.meta.env.DEV が false になり、
+            この <section> ごと消える（v2.2.0 リスク#5 と同じ3層検証で無効化を
+            確認する: ソース → web/nativeビルド → AAB展開後のJS）。 */}
+        {import.meta.env.DEV && (
+          <section className="settings__section">
+            <span className="settings__label">開発ツール</span>
+            <GlassCard variant="glass">
+              <button
+                type="button"
+                className="sheet-opt settings__btn settings__btn--center"
+                onClick={handleFireTestNotification}
+                disabled={testNotifStatus === 'sending'}
+              >
+                <Icon name="alarm-clock" size={18} />
+                通知を1分後にテスト発火
+              </button>
+              <p className="settings__hint">
+                1a-2残の実機確認用。本番と同じ allowWhileIdle/smallIcon で送る。
+              </p>
+            </GlassCard>
+          </section>
+        )}
 
         <footer className="settings__footer">
           <div className="settings__brand" onClick={bumpPlan}>

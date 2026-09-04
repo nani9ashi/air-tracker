@@ -90,3 +90,45 @@ export async function requestPermissionAfterReset() {
   const granted = await ensureNotificationPermission()
   if (granted) await syncActiveReminder({ userAction: true })
 }
+
+// ============================================================
+// 開発限定: 1分後に発火するテスト通知（1a-2残の実機検証用）。
+//
+// 検証したいのは notify-plan.js の出し分けロジックではない（58件のテストで
+// 固定済み）。「この端末に本当に届くか / 画面OFF・Doze を越えるか /
+// アイコンが正しいか」であり、これは実機でしか確認できない。推奨サイクルが
+// 7〜28日と長いため、通常の操作フローでは何日も待たないと確認できない。
+//
+// 本番の syncActiveReminder（:77）と同じ schedule/smallIcon を使うこと。
+// ここが違うと「テストは届いたのに本番は届かない」が起こり得て検証にならない。
+//
+// ID は専用スロット（idForKind の primary/renudge とは別ハッシュ）を使い、
+// 実データの予約（次回の空気入れ通知）を上書きしない。
+//
+// import.meta.env.DEV ガードは呼び出し側（SettingsScreen.jsx）にもあるが、
+// ライブラリ関数としてもここで二重に閉じる（DEV ガードは3層で無効化を
+// 実証した v2.2.0 リスク#5 と同じ考え方: ソース・呼び出し側・関数内部）。
+export async function fireTestNotification() {
+  if (!import.meta.env.DEV) return { ok: false, reason: 'dev-only' }
+  if (!NATIVE) return { ok: false, reason: 'native-only' }
+  try {
+    const perm = await LocalNotifications.checkPermissions()
+    if (perm.display !== 'granted') return { ok: false, reason: 'permission-denied' }
+    const at = new Date(Date.now() + 60 * 1000)
+    await LocalNotifications.schedule({
+      notifications: [
+        {
+          id: hashId('quuki-dev-test-notification'),
+          title: 'QUUKIテスト通知',
+          body: `1a-2残の実機確認用（発火予定 ${at.toLocaleTimeString('ja-JP')}）`,
+          schedule: { at, allowWhileIdle: true },
+          smallIcon: 'ic_stat_quuki',
+        },
+      ],
+    })
+    return { ok: true, at }
+  } catch (e) {
+    console.warn('[notifications] test fire failed', e)
+    return { ok: false, reason: 'failed' }
+  }
+}
