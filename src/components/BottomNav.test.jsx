@@ -70,4 +70,23 @@ describe('BottomNav', () => {
     expect(btn.querySelector('.bottom-nav__icon')).toHaveAttribute('aria-hidden', 'true')
     expect(btn.querySelector('.bottom-nav__label')).not.toHaveAttribute('aria-hidden')
   })
+
+  it('全幅ベタ化の構造規約: nav 直下に .bottom-nav__inner があり、全ボタンがその中にある', () => {
+    // v2.3: 背景(.bottom-nav)は全幅、操作領域(.bottom-nav__inner)だけ420pxに
+    // 中央寄せする構造。実際に全幅で描画されるかは jsdom では検証できない
+    // （レイアウト計算をしないため）ので、ここで固定するのは
+    // 「ラッパが存在し、ボタンが必ずその中にある」という DOM 構造の規約のみ。
+    // 実証はブラウザでの getBoundingClientRect()（実機マトリクス相当）。
+    render(<BottomNav items={ITEMS} active="home" onChange={vi.fn()} />)
+    const nav = screen.getByRole('navigation', { name: 'メインナビゲーション' })
+    const inner = nav.querySelector(':scope > .bottom-nav__inner')
+    expect(inner).toBeTruthy()
+    const buttons = screen.getAllByRole('button')
+    expect(buttons).toHaveLength(4)
+    for (const btn of buttons) {
+      expect(inner.contains(btn)).toBe(true)
+    }
+    // nav 自身の直接の子は inner 1つだけ（背景要素が増えていない）
+    expect(nav.children).toHaveLength(1)
+  })
 })

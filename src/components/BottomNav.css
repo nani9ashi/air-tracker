@@ -1,21 +1,19 @@
 .bottom-nav {
   position: fixed;
-  left: 50%;
+  left: 0;
+  right: 0;
   bottom: 0;
-  transform: translateX(-50%);
-  width: 100%;
-  max-width: var(--screen-max);
+  /* v2.3: 背景と境界線をビューポート全幅へ。420px 上限のままだと
+     428/430px 端末で左右に数px の地が覗き「浮いた長方形」に見えていた。
+     ダークは端のコントラスト比 1.29 で段差が見え、ライトは 1.10 で溶けるため、
+     同じ幅なのに「テーマで横幅が違う」と読めていた（幾何は常に一致していた）。
+     操作領域はアプリ列 420px のまま .bottom-nav__inner に閉じ込める。 */
   /* box-sizing:border-box なので padding-bottom は height の内側を食う。
      height にも同じインセットを足して初めて操作領域 76px が残る。
      v2.1.9 まではこれが無く、3ボタンナビ(48dp)では content box が 28px まで
      潰れて、アイコン38px+gap4px+ラベル の縦積みが溢れ、ラベルがシステムナビの
      下に沈んでいた。背景はこの高さぶん伸びるのでガラス面はシステムバーの裏まで続く。 */
   height: var(--bottom-nav-total);
-  display: flex;
-  align-items: center;
-  justify-content: space-around;
-  gap: var(--space-1);
-  padding: 0 var(--space-3);
   padding-bottom: var(--safe-bottom);
   background: var(--glass-fill-strong);
   -webkit-backdrop-filter: blur(var(--blur-strong));
@@ -24,9 +22,24 @@
   z-index: 50;
 }
 
+/* 操作領域はアプリ列（420px）に揃える。背景だけが全幅で、中身は中央寄せ。
+   height:100% は親（.bottom-nav の content box）に対する割合で、
+   .bottom-nav__btn の height:100% はさらにこれに対する割合として連鎖する
+   （v2.2.0 で確立したセーフエリアの挙動をそのまま継承）。 */
+.bottom-nav__inner {
+  height: 100%;
+  max-width: var(--screen-max);
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  gap: var(--space-1);
+  padding: 0 var(--space-3);
+}
+
 .bottom-nav__btn {
   flex: 1;
-  /* % 高さは親の content box（= --bottom-nav-h − border-top 1px）に対する割合。
+  /* % 高さは親（.bottom-nav__inner の content box）に対する割合。
      下駄は padding なので 100% には含まれず、ボタンはシステムバーに乗らない。
      ⚠ 固定値に書き換えるなら calc(var(--bottom-nav-h) - 1px)。 */
   height: 100%;
