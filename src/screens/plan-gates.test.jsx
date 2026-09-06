@@ -61,17 +61,15 @@ beforeEach(() => {
 // ------------------------------------------------------------
 // 上限表そのもの
 // ------------------------------------------------------------
-describe('PLAN_LIMITS — v2.2.0 の対応表', () => {
-  it('複数台は pro 以上で解放（UI 文言「Proで解放」と一致する）', () => {
+describe('PLAN_LIMITS — v2.4.0 の対応表（free/paid の2値）', () => {
+  it('複数台は有料版で解放（UI 文言「Proで解放」と一致する）', () => {
     expect(PLAN_LIMITS.free.bikes).toBe(1)
-    expect(PLAN_LIMITS.pro.bikes).toBe(Infinity)
-    expect(PLAN_LIMITS.premium.bikes).toBe(Infinity)
+    expect(PLAN_LIMITS.paid.bikes).toBe(Infinity)
   })
 
-  it.each(['customCycle', 'backup'])('%s は pro 以上', (key) => {
+  it.each(['customCycle', 'backup'])('%s は有料版のみ', (key) => {
     expect(PLAN_LIMITS.free[key]).toBe(false)
-    expect(PLAN_LIMITS.pro[key]).toBe(true)
-    expect(PLAN_LIMITS.premium[key]).toBe(true)
+    expect(PLAN_LIMITS.paid[key]).toBe(true)
   })
 })
 

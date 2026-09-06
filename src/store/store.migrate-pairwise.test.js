@@ -25,17 +25,17 @@ const validBikes = () => [
 // §5-1 バージョン振り分けの EP
 // ------------------------------------------------------------
 describe('migrate — バージョン振り分けの EP', () => {
-  it('EP: version=3 + bikes配列 → normalize を通る（plan 維持）', () => {
+  it('EP: version=3 + bikes配列 → normalize を通る（旧 premium は paid へ正規化）', () => {
     const r = migrate({ version: 3, bikes: validBikes(), settings: { plan: 'premium', activeBikeId: 'bike-1' } })
     expect(r.version).toBe(3)
-    expect(r.settings.plan).toBe('premium')
+    expect(r.settings.plan).toBe('paid')
     expect(r.bikes[0].items[0].intervalDays).toBe(21)
   })
 
   it('EP: version=2 + bikes配列 → v3 化（isPremium→plan）', () => {
     const r = migrate({ version: 2, bikes: validBikes(), settings: { isPremium: true } })
     expect(r.version).toBe(3)
-    expect(r.settings.plan).toBe('pro')
+    expect(r.settings.plan).toBe('paid')
     expect('isPremium' in r.settings).toBe(false)
   })
 
@@ -113,7 +113,7 @@ describe('migrate — バージョン振り分けの EP', () => {
     expect(r.bikes[0].name).toBe('通勤号')
     expect(r.bikes[0].items[0].history).toHaveLength(1)
     expect(r.bikes[0].items[0].intervalDays).toBe(21)
-    expect(r.settings.plan).toBe('premium')
+    expect(r.settings.plan).toBe('paid') // 旧 premium は paid へ正規化
   })
 
   it('EP: 未知の settings キーは温存される（加算的なスキーマ変更に耐える）', () => {
@@ -135,7 +135,9 @@ const SETTINGS = {
   'isPremium:true': () => ({ isPremium: true, theme: 'light', activeBikeId: 'bike-1' }),
   欠落: () => undefined,
 }
-const EXPECTED_PLAN = { 正常plan: 'pro', 未知plan: 'free', 'isPremium:true': 'pro', 欠落: 'free' }
+// 正常plan/isPremium:true の入力フィクスチャは旧値('pro')のまま残す（後方互換の実データを
+// 模している）。期待される正規化後の値だけを 'paid' に更新する。
+const EXPECTED_PLAN = { 正常plan: 'paid', 未知plan: 'free', 'isPremium:true': 'paid', 欠落: 'free' }
 
 const HISTORY = {
   オブジェクト配列: () => [{ id: 'h1', date: A }, { id: 'h2', date: B }],
@@ -275,7 +277,7 @@ describe('normalize — bikes / items が空・欠落のときの回復', () => 
     expect(out.bikes).toHaveLength(1)
     expect(out.bikes[0].id).toBe('bike-1')
     expect(out.settings.activeBikeId).toBe('bike-1')
-    expect(out.settings.plan).toBe('pro') // プランは保たれる
+    expect(out.settings.plan).toBe('paid') // プランは保たれる（旧pro→paidへ正規化）
   })
 
   it('EP: activeBikeId が実在しなければ先頭の自転車へ寄せる', () => {
@@ -497,7 +499,7 @@ describe('load — 保存データの読み込み', () => {
     localStorage.setItem(LEGACY_KEY, JSON.stringify({ lastPump: A, intervalDays: 7 }))
     const s = await freshStore({ version: 3, bikes: validBikes(), settings: { plan: 'pro', activeBikeId: 'bike-1' } })
     expect(air(s).intervalDays).toBe(21)
-    expect(s.getState().settings.plan).toBe('pro')
+    expect(s.getState().settings.plan).toBe('paid')
   })
 
   it.each([
@@ -517,7 +519,7 @@ describe('load — 保存データの読み込み', () => {
     const s = await freshStore(future)
     expect(air(s).history).toHaveLength(1)
     expect(air(s).intervalDays).toBe(21)
-    expect(s.getState().settings.plan).toBe('premium')
+    expect(s.getState().settings.plan).toBe('paid')
     // 現行バージョンへ揃えて書き戻される
     expect(readPersisted().version).toBe(VERSION_NOW)
   })
@@ -591,7 +593,7 @@ describe('importJSON — 有効パーティション', () => {
   it('EP: import 後の state は localStorage にも反映される', async () => {
     const s = await freshStore()
     s.importJSON(JSON.stringify({ version: 3, bikes: validBikes(), settings: { plan: 'pro', activeBikeId: 'bike-1' } }))
-    expect(readPersisted().settings.plan).toBe('pro')
+    expect(readPersisted().settings.plan).toBe('paid')
     expect(readPersisted().bikes[0].items[0].intervalDays).toBe(21)
   })
 })
@@ -644,7 +646,7 @@ describe('importJSON — 無効パーティション', () => {
     })
     // 既存データは無傷
     expect(air(s).history).toHaveLength(1)
-    expect(s.getState().settings.plan).toBe('pro')
+    expect(s.getState().settings.plan).toBe('paid')
   })
 
   it('EP: version が未知でも中身があれば取り込める（データを失わない）', async () => {
@@ -654,7 +656,7 @@ describe('importJSON — 無効パーティション', () => {
     expect(s.importJSON(input)).toEqual({ ok: true })
     expect(air(s).history).toHaveLength(1)
     expect(air(s).intervalDays).toBe(21)
-    expect(s.getState().settings.plan).toBe('premium')
+    expect(s.getState().settings.plan).toBe('paid')
   })
 })
 

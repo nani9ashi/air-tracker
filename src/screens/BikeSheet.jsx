@@ -9,7 +9,7 @@ import './BikeSheet.css'
 
 /**
  * 自転車の切替・追加シート（ホームヘッダから開く）。
- * 複数台は Pro 以上で解放（PLAN_LIMITS）。無料は1台。
+ * 複数台は有料版で解放（PLAN_LIMITS）。無料は1台。
  */
 export default function BikeSheet({ open, onClose }) {
   const state = useStore()
