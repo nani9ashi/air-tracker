@@ -103,13 +103,13 @@ export default function SettingsScreen() {
     reader.readAsText(file)
   }
 
-  // 開発時のみ: 版フッターを5回タップで free→pro→premium を循環（本番ビルドでは無効）。
+  // 開発時のみ: 版フッターを5回タップで free/paid を切り替え（本番ビルドでは無効）。
   const bumpPlan = () => {
     if (!import.meta.env.DEV) return
     planTaps.current += 1
     if (planTaps.current >= 5) {
       planTaps.current = 0
-      const order = ['free', 'pro', 'premium']
+      const order = ['free', 'paid']
       const next = order[(order.indexOf(state.settings.plan) + 1) % order.length]
       setPlan(next)
       showToast(`開発: プラン = ${next}`)

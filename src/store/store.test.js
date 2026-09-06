@@ -54,10 +54,10 @@ describe('migrate', () => {
     expect('isPremium' in r.settings).toBe(false)
   })
 
-  it('v2 → v3: isPremium:true → plan pro（theme 保持・isPremium 除去）', () => {
+  it('v2 → v3: isPremium:true → plan paid（theme 保持・isPremium 除去）', () => {
     const r = migrate(v2({ isPremium: true }))
     expect(r.version).toBe(3)
-    expect(r.settings.plan).toBe('pro')
+    expect(r.settings.plan).toBe('paid')
     expect(r.settings.theme).toBe('dark')
     expect('isPremium' in r.settings).toBe(false)
   })
@@ -75,14 +75,14 @@ describe('migrate', () => {
     expect(r.settings.activeBikeId).toBe('bike-1')
   })
 
-  it('既存 v3 はパススルー（plan 維持）', () => {
+  it('既存 v3 はパススルー（旧 pro は paid へ正規化）', () => {
     const r = migrate({
       version: 3,
       bikes: [{ id: 'bike-1', name: 'X', items: [{ type: 'air', lastReset: null, intervalDays: 14, history: [] }] }],
       settings: { theme: 'light', plan: 'pro', activeBikeId: 'bike-1' },
     })
     expect(r.version).toBe(3)
-    expect(r.settings.plan).toBe('pro')
+    expect(r.settings.plan).toBe('paid')
   })
 })
 
@@ -113,25 +113,27 @@ describe('getLimits / normalizePlan', () => {
       bikes: 1, history: 3, heatmapWeeks: 5, customCycle: false, backup: false,
     })
   })
-  it('pro の上限（履歴全件・全期間・カスタム/バックアップ/複数台 可）', () => {
-    expect(getLimits({ settings: { plan: 'pro' } })).toEqual({
+  it('paid の上限（履歴全件・全期間・カスタム/バックアップ/複数台 可）', () => {
+    expect(getLimits({ settings: { plan: 'paid' } })).toEqual({
       bikes: Infinity, history: Infinity, heatmapWeeks: 'auto', customCycle: true, backup: true,
     })
   })
-  it('premium も複数台可（v2.2.0 以降 pro と同値）', () => {
-    expect(getLimits({ settings: { plan: 'premium' } })).toEqual(PLAN_LIMITS.pro)
+  it('旧 pro/premium も paid の上限に正規化される（v2.4.0 の2値統合）', () => {
+    expect(getLimits({ settings: { plan: 'pro' } })).toEqual(PLAN_LIMITS.paid)
+    expect(getLimits({ settings: { plan: 'premium' } })).toEqual(PLAN_LIMITS.paid)
   })
-  it('複数台は pro 以上、無料は1台（v2.2.0 で文言と実装を整合）', () => {
+  it('複数台は有料版のみ、無料は1台', () => {
     expect(getLimits({ settings: { plan: 'free' } }).bikes).toBe(1)
-    expect(getLimits({ settings: { plan: 'pro' } }).bikes).toBe(Infinity)
-    expect(getLimits({ settings: { plan: 'premium' } }).bikes).toBe(Infinity)
+    expect(getLimits({ settings: { plan: 'paid' } }).bikes).toBe(Infinity)
   })
   it('壊れた入力は free 上限', () => {
     expect(getLimits({})).toBe(PLAN_LIMITS.free)
     expect(getLimits({ settings: { plan: 'nope' } })).toBe(PLAN_LIMITS.free)
   })
-  it('normalizePlan: 正常はそのまま / 異常は free', () => {
-    expect(normalizePlan('pro')).toBe('pro')
+  it('normalizePlan: 正常はそのまま / 旧値は paid へ吸収 / 異常は free', () => {
+    expect(normalizePlan('paid')).toBe('paid')
+    expect(normalizePlan('pro')).toBe('paid')
+    expect(normalizePlan('premium')).toBe('paid')
     for (const bad of ['bogus', '', null, undefined]) expect(normalizePlan(bad)).toBe('free')
   })
 })
@@ -156,16 +158,21 @@ describe('pump', () => {
 describe('setPlan', () => {
   it('正常値を設定 / 未知値は free に矯正', async () => {
     const s = await freshStore()
-    s.setPlan('pro')
-    expect(s.getState().settings.plan).toBe('pro')
+    s.setPlan('paid')
+    expect(s.getState().settings.plan).toBe('paid')
     s.setPlan('bogus')
     expect(s.getState().settings.plan).toBe('free')
+  })
+  it('旧値 pro/premium で呼んでも paid に正規化される（後方互換）', async () => {
+    const s = await freshStore()
+    s.setPlan('pro')
+    expect(s.getState().settings.plan).toBe('paid')
   })
   it('bikes/history は変更しない', async () => {
     const s = await freshStore()
     s.pump('2026-06-01T12:00:00.000Z')
     const len = s.getActiveAirItem(s.getState()).history.length
-    s.setPlan('premium')
+    s.setPlan('paid')
     expect(s.getActiveAirItem(s.getState()).history.length).toBe(len)
     expect(s.getState().bikes).toHaveLength(1)
   })
@@ -175,17 +182,17 @@ describe('setPlan', () => {
 describe('importJSON / exportJSON', () => {
   it('往復で state が安定（v3）', async () => {
     const s = await freshStore()
-    s.setPlan('pro')
+    s.setPlan('paid')
     s.pump('2026-06-01T12:00:00.000Z')
     const snapshot = s.exportJSON()
     const before = s.getState()
     expect(s.importJSON(snapshot)).toEqual({ ok: true })
     expect(s.getState()).toEqual(before)
   })
-  it('v2(isPremium:true) の import → plan pro ＋ isPremium 無し', async () => {
+  it('v2(isPremium:true) の import → plan paid ＋ isPremium 無し', async () => {
     const s = await freshStore()
     expect(s.importJSON(JSON.stringify(v2({ isPremium: true })))).toEqual({ ok: true })
-    expect(s.getState().settings.plan).toBe('pro')
+    expect(s.getState().settings.plan).toBe('paid')
     expect('isPremium' in s.getState().settings).toBe(false)
   })
   it('不正 JSON / 非対応形式はエラー', async () => {

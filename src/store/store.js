@@ -17,21 +17,23 @@ const PRESET_INTERVALS = [7, 14, 21, 28]
 // 注: Infinity はコード上のみ。localStorage には settings.plan（文字列）だけが載る。
 export const PLAN_LIMITS = {
   free: { bikes: 1, history: 3, heatmapWeeks: 5, customCycle: false, backup: false },
-  // v2.2.0: 複数台を Pro で解放。UI は以前から「複数の自転車はProで解放されます」と
-  // 案内していたのに pro.bikes が 1 で解放されない、という不整合があった
-  // （docs/test-completion-report.md §12 の最優先残存リスク）。文言側ではなく
-  // 上限側を動かして解消している。
-  pro: { bikes: Infinity, history: Infinity, heatmapWeeks: 'auto', customCycle: true, backup: true },
-  // ⚠ この時点で premium は pro と完全に同値。観測可能な差を持たない段になった。
-  //   差別化は未実装の「複数メンテ項目」に移っており、それを作るまでは
-  //   premium を売る根拠が無い（1b-2 のペイウォール実装前に決着させること）。
-  premium: { bikes: Infinity, history: Infinity, heatmapWeeks: 'auto', customCycle: true, backup: true },
+  // v2.4.0: 課金は¥300買い切り1段に一本化（README §8）。'pro'/'premium' が
+  // 完全同値だった3値スキーマを 'free'|'paid' の2値へ整理した。
+  paid: { bikes: Infinity, history: Infinity, heatmapWeeks: 'auto', customCycle: true, backup: true },
 }
-export const PLANS = ['free', 'pro', 'premium']
+export const PLANS = ['free', 'paid']
+
+// v2.2.0以前の3値スキーマからの移行。'pro'/'premium' は既存デバイスの
+// 永続データにのみ残り得る（新規に書き込むのは 'free'|'paid' のみ）。読み取り時に
+// 'paid' として解釈し、次回の load→normalize→persist（起動時 persist() は
+// 既存挙動・追加コード不要）で自己修復する。加算的な移行＝storage の shape は
+// 変えていない（store.js の運用ルールに従う）。
+const LEGACY_PLAN_ALIASES = { pro: 'paid', premium: 'paid' }
 
 // プランを検証・正規化。未知値は 'free'。
 export function normalizePlan(plan) {
-  return PLANS.includes(plan) ? plan : 'free'
+  const aliased = LEGACY_PLAN_ALIASES[plan] || plan
+  return PLANS.includes(aliased) ? aliased : 'free'
 }
 
 // state から現在プランの上限を引く。selector 省略でグローバル state。
@@ -107,7 +109,7 @@ export function makeDefaultState() {
     ],
     settings: {
       theme: 'auto', // 'auto' | 'dark' | 'light'
-      plan: 'free', // 'free' | 'pro' | 'premium'（README §8）
+      plan: 'free', // 'free' | 'paid'（README §8）
       activeBikeId: 'bike-1',
     },
   }
@@ -172,9 +174,9 @@ export function migrate(raw) {
 export function normalize(state) {
   const def = makeDefaultState()
   const src = state.settings || {}
-  // 旧 isPremium -> plan。このアプリの有料段は Pro（true='pro' / false='free'）。
-  // plan があればそれを優先し検証。実ユーザー0のため退行リスクは無い。
-  const plan = 'plan' in src ? normalizePlan(src.plan) : src.isPremium ? 'pro' : 'free'
+  // 旧 isPremium -> plan（v2以前）。このアプリの有料段は 'paid' の1段のみ。
+  // plan があればそれを優先し検証（normalizePlan が 'pro'/'premium' も 'paid' へ吸収する）。
+  const plan = 'plan' in src ? normalizePlan(src.plan) : src.isPremium ? 'paid' : 'free'
   const settings = { ...def.settings, ...src, plan }
   delete settings.isPremium
   // 外部データは要素が null や配列のこともある（手編集 JSON / 破損 localStorage）。
@@ -399,7 +401,7 @@ export function setTheme(mode) {
   commit(next)
 }
 
-// プランを設定。README の3値のみ（未知値は 'free' に coerce）。
+// プランを設定。README の2値のみ（未知値・旧'pro'/'premium'は normalizePlan で吸収）。
 export function setPlan(plan) {
   const next = structuredCloneState(state)
   next.settings.plan = normalizePlan(plan)
