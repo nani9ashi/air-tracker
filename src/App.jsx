@@ -11,6 +11,7 @@ import { applyTheme, resolveTheme, watchSystemTheme } from './lib/theme.js'
 import { applyStatusBar } from './lib/statusbar.js'
 import { syncActiveReminder } from './lib/notifications.js'
 import { installReminderSync } from './lib/reminder-sync.js'
+import { initBilling } from './lib/billing.js'
 
 function useHash() {
   const [hash, setHash] = useState(window.location.hash)
@@ -46,6 +47,13 @@ export default function App() {
   useEffect(() => {
     syncActiveReminder()
     return installReminderSync()
+  }, [])
+
+  // RevenueCat の初期化（native かつ APIキー設定済みのときのみ実際に configure する。
+  // Step0未完了の現時点では no-op）。エンタイトルメントの起動時リストアは
+  // v2.4.0 PR3 で billing.js に追加する。
+  useEffect(() => {
+    initBilling()
   }, [])
 
   // 開発時のみ #preview でコンポーネントカタログ。
