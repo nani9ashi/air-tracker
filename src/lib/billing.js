@@ -1,0 +1,113 @@
+// ============================================================
+// billing.js — RevenueCat 経由の課金（IAP: pro_upgrade, 買い切り1段）。
+//
+// native(Android) のみ動作。PWA/Web に Play Billing の等価物は存在しないため、
+// notifications.js と同じく native/web の分岐は「web は成立しない」前提で
+// 早期returnする。native/web の分岐自体は backup.js / notifications.js と
+// 同じ house pattern（Capacitor.isNativePlatform() をロード時に定数化・
+// 静的 import・{ok,reason} を返し例外を投げない）。
+//
+// 🔒 設計制約（README §8 / バックログ 1b-1・2026-08-20確定・最重要）:
+// settings.plan を課金状態の source of truth にしない。RevenueCat の
+// 購入状態を起点にし、localStorage（= settings.plan）は表示用キャッシュに
+// 留める。起動時のリストア（restoreEntitlementOnStartup）は billing.js に
+// 続けて実装する（v2.4.0 PR3）。このPRでは購入導線とDEVシミュレーションの
+// 骨格のみを用意する——どの画面からもまだ呼ばれていない。
+// ============================================================
+import { Capacitor } from '@capacitor/core'
+import { Purchases } from '@revenuecat/purchases-capacitor'
+import { setPlan } from '../store/store.js'
+
+const NATIVE = Capacitor.isNativePlatform()
+const API_KEY = import.meta.env.VITE_REVENUECAT_API_KEY
+
+// RevenueCat 側の entitlement 識別子。store.js の 'paid' 値と1:1で対応させる
+// （Step0セットアップ手順書で同じ文字列を使うよう指示済み）。
+export const ENTITLEMENT_ID = 'paid'
+
+// アプリ起動時に一度呼ぶ。APIキー未設定（Step0未完了）や web では no-op。
+export async function initBilling() {
+  if (!NATIVE || !API_KEY) return
+  try {
+    await Purchases.configure({ apiKey: API_KEY })
+  } catch (e) {
+    console.warn('[billing] configure failed', e)
+  }
+}
+
+// 現在のエンタイトルメント状態を照会する（起動時リストアの基礎。PR3で使用）。
+// status: 'confirmed'（照会成功） | 'unknown'（オフライン等で判定不能）。
+// 'unknown' のとき呼び出し側は plan を変更してはいけない
+// （オフラインで降格させない、が本リリースの中心的な安全原則）。
+export async function checkEntitlement() {
+  if (!NATIVE) return { ok: true, status: 'unknown', reason: 'web-unsupported' }
+  try {
+    const { customerInfo } = await Purchases.getCustomerInfo()
+    return { ok: true, status: 'confirmed', entitled: !!customerInfo?.entitlements?.active?.[ENTITLEMENT_ID] }
+  } catch (e) {
+    console.warn('[billing] checkEntitlement failed', e)
+    return { ok: false, status: 'unknown', reason: 'failed' }
+  }
+}
+
+// ユーザー起動の「購入を復元」ボタン用。checkEntitlement と違い、
+// ストアへ明示的に再照会させる（restorePurchases）。
+export async function restorePurchases() {
+  if (!NATIVE) return { ok: true, status: 'unknown', reason: 'web-unsupported' }
+  try {
+    const { customerInfo } = await Purchases.restorePurchases()
+    return { ok: true, status: 'confirmed', entitled: !!customerInfo?.entitlements?.active?.[ENTITLEMENT_ID] }
+  } catch (e) {
+    console.warn('[billing] restore failed', e)
+    return { ok: false, status: 'unknown', reason: 'failed' }
+  }
+}
+
+// ペイウォールに表示する価格文字列。ハードコードしない（Play側の価格変更に追従）。
+// null は「取得できなかった」——呼び出し側は「読み込み中」等で表示すること。
+export async function getPriceLabel() {
+  if (!NATIVE) return import.meta.env.DEV ? '¥300（開発シミュレーション）' : null
+  try {
+    const offerings = await Purchases.getOfferings()
+    return offerings?.current?.availablePackages?.[0]?.product?.priceString ?? null
+  } catch (e) {
+    console.warn('[billing] getOfferings failed', e)
+    return null
+  }
+}
+
+// 購入を実行する。成功時は setPlan('paid') までこの関数の責務として行う
+// （呼び出し側＝将来のペイウォールUIは結果の表示だけに専念できる）。
+export async function purchase() {
+  if (!NATIVE) return import.meta.env.DEV ? devSimulatedPurchase() : { ok: false, reason: 'native-only' }
+  try {
+    const offerings = await Purchases.getOfferings()
+    const pkg = offerings?.current?.availablePackages?.[0]
+    if (!pkg) return { ok: false, reason: 'no-offering' }
+    const { customerInfo } = await Purchases.purchasePackage({ aPackage: pkg })
+    const entitled = !!customerInfo?.entitlements?.active?.[ENTITLEMENT_ID]
+    if (entitled) setPlan('paid')
+    return entitled ? { ok: true } : { ok: false, reason: 'not-entitled' }
+  } catch (e) {
+    if (isUserCancellation(e)) return { ok: false, reason: 'cancelled' }
+    console.warn('[billing] purchase failed', e)
+    return { ok: false, reason: 'failed' }
+  }
+}
+
+// ⚠ 開発限定: RevenueCat未設定（Step0未完了）でもペイウォールUIの購入フローを
+// 一通り検証できるようにする（notifications.js の fireTestNotification と
+// 同じ考え方）。native判定に頼るので追加のDEVガードは不要——`npm run dev` は
+// ブラウザで動く限り常に !NATIVE。本番native buildでは NATIVE===true になり
+// この関数へは絶対に到達しない（purchase() の分岐を参照）。
+async function devSimulatedPurchase() {
+  await new Promise((resolve) => setTimeout(resolve, 600)) // purchasing 状態を目視できる遅延
+  setPlan('paid')
+  return { ok: true, simulated: true }
+}
+
+// ユーザーが購入ダイアログを自分で閉じた/キャンセルしたことを、他の失敗と区別する
+// （backup.js の isCancellation と同じ原則：閉じただけの操作にエラー表示しない）。
+function isUserCancellation(e) {
+  return /cancel/i.test(String(e?.message || e?.code || e))
+}
