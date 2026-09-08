@@ -172,19 +172,6 @@
   gap: var(--space-2);
   flex-wrap: wrap;
 }
-.home__premium {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-family: var(--font-jp);
-  font-size: var(--fs-body-sm);
-  color: var(--text-secondary);
-  background: var(--energy-soft);
-  border: 1px solid var(--energy);
-  border-radius: var(--radius-md);
-  padding: var(--space-3);
-}
-
 /* 予約の可視化（次回お知らせ）。控えめ・常設の1行。 */
 .home__reminder {
   display: inline-flex;

@@ -5,6 +5,7 @@ import QuukiMark from '../components/QuukiMark.jsx'
 import Toast from '../components/Toast.jsx'
 import PromptSheet from '../components/PromptSheet.jsx'
 import ConfirmSheet from '../components/ConfirmSheet.jsx'
+import PaywallSheet from '../components/PaywallSheet.jsx'
 import { useStore } from '../store/useStore.js'
 import {
   getActiveBike,
@@ -20,7 +21,6 @@ import {
 } from '../store/store.js'
 import { exportBackup } from '../lib/backup.js'
 import { fireTestNotification } from '../lib/notifications.js'
-import { track, EV } from '../lib/analytics.js'
 import './SettingsScreen.css'
 
 const THEMES = [
@@ -41,6 +41,9 @@ export default function SettingsScreen() {
   const [name, setName] = useState(bike.name)
   const [addOpen, setAddOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
+  // 自転車追加・バックアップ書き出し/読み込みの3箇所が共有する単一のペイウォール
+  // （既存の単一Toastインスタンスと同じパターン）。
+  const [paywallSource, setPaywallSource] = useState(null)
   const [toast, setToast] = useState(null)
   const fileRef = useRef(null)
   const toastTimer = useRef(0)
@@ -65,8 +68,7 @@ export default function SettingsScreen() {
 
   const handleAddBike = () => {
     if (addLocked) {
-      track(EV.PAYWALL, { source: 'settings_add_bike' })
-      showToast('複数の自転車はProで解放されます')
+      setPaywallSource('settings_add_bike')
       return
     }
     setAddOpen(true)
@@ -77,8 +79,7 @@ export default function SettingsScreen() {
 
   const handleExport = async () => {
     if (backupLocked) {
-      track(EV.PAYWALL, { source: 'backup_export' })
-      showToast('バックアップはProで解放されます')
+      setPaywallSource('backup_export')
       return
     }
     const res = await exportBackup(exportJSON())
@@ -228,10 +229,7 @@ export default function SettingsScreen() {
               <button
                 type="button"
                 className="sheet-opt settings__btn settings__btn--center"
-                onClick={() => {
-                  track(EV.PAYWALL, { source: 'backup_import' })
-                  showToast('バックアップはProで解放されます')
-                }}
+                onClick={() => setPaywallSource('backup_import')}
                 aria-label="読み込み（Proで解放）"
               >
                 <Icon name="lock" size={18} />
@@ -257,6 +255,40 @@ export default function SettingsScreen() {
               ? 'バックアップ（書き出し/読み込み）はProで解放されます。'
               : 'インポートは現在のデータを置き換えます。'}
           </p>
+        </section>
+
+        {/* アップグレード: データのバックアップの後、開発ツールの前（PR5で確定した位置）。
+            limits.backup はキャッシュ済み state.settings.plan から即座に決まるので、
+            起動時リストア（restoreEntitlementOnStartup）の完了を待たずに描画する
+            ——有料の人に一瞬でも「未購入」に見える表示をしない。 */}
+        <section className="settings__section">
+          <span className="settings__label">アップグレード</span>
+          <GlassCard variant="glass">
+            {limits.backup ? (
+              <p
+                className="cad-body"
+                role="status"
+                style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', color: 'var(--text-secondary)' }}
+              >
+                <Icon name="circle-check" size={18} style={{ color: 'var(--text-accent)' }} />
+                Pro（購入済み）
+              </p>
+            ) : (
+              <>
+                <p className="settings__hint">
+                  複数の自転車・全履歴・全期間のヒートマップ・カスタム間隔・バックアップが使えます。
+                </p>
+                <button
+                  type="button"
+                  className="sheet-opt settings__btn settings__btn--center"
+                  onClick={() => setPaywallSource('settings_upgrade')}
+                >
+                  <Icon name="lock" size={18} />
+                  Proにアップグレード
+                </button>
+              </>
+            )}
+          </GlassCard>
         </section>
 
         {/* 開発ツール: 本番ビルドでは import.meta.env.DEV が false になり、
@@ -316,6 +348,8 @@ export default function SettingsScreen() {
           showToast('自転車を削除しました')
         }}
       />
+
+      <PaywallSheet open={!!paywallSource} onClose={() => setPaywallSource(null)} source={paywallSource} />
 
       <Toast show={!!toast} message={toast} />
     </div>

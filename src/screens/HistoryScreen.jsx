@@ -4,9 +4,9 @@ import ListRow from '../components/ListRow.jsx'
 import Sheet from '../components/Sheet.jsx'
 import Button from '../components/Button.jsx'
 import Icon from '../components/Icon.jsx'
+import PaywallSheet from '../components/PaywallSheet.jsx'
 import { useStore } from '../store/useStore.js'
 import { getActiveAirItem, editHistory, removeHistory, getLimits } from '../store/store.js'
-import { track, EV } from '../lib/analytics.js'
 import { averageIntervalDays, totalCount, sortedHistory } from '../lib/stats.js'
 import { formatDateJP, daysBetween, toDateInputValue, dateInputToISO } from '../lib/date.js'
 import './HistoryScreen.css'
@@ -22,7 +22,7 @@ export default function HistoryScreen() {
 
   const [editing, setEditing] = useState(null)
   const [editValue, setEditValue] = useState('')
-  const [showUpsell, setShowUpsell] = useState(false)
+  const [paywallOpen, setPaywallOpen] = useState(false)
   // 編集シートは既に Sheet なので、削除確認は入れ子の Sheet ではなく
   // シート本体の差し替えで出す。
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -163,25 +163,14 @@ export default function HistoryScreen() {
           )}
 
           {locked.length > 0 && (
-            <>
-              <button
-                type="button"
-                className="history__lock-row"
-                onClick={() => {
-                  track(EV.PAYWALL, { source: 'history' })
-                  setShowUpsell((v) => !v)
-                }}
-                aria-label={`残り${locked.length}件はProで全件表示`}
-              >
-                {/* TODO(1b-2): ここを実ペイウォールへ差し替える */}
-                <Icon name="lock" size={16} /> 残り{locked.length}件はProで全件表示できます
-              </button>
-              {showUpsell && (
-                <p className="history__premium" role="status">
-                  <Icon name="lock" size={14} /> Proにアップグレードすると全ての履歴を表示できます
-                </p>
-              )}
-            </>
+            <button
+              type="button"
+              className="history__lock-row"
+              onClick={() => setPaywallOpen(true)}
+              aria-label={`残り${locked.length}件はProで全件表示`}
+            >
+              <Icon name="lock" size={16} /> 残り{locked.length}件はProで全件表示できます
+            </button>
           )}
         </GlassCard>
       </main>
@@ -238,6 +227,8 @@ export default function HistoryScreen() {
           </div>
         )}
       </Sheet>
+
+      <PaywallSheet open={paywallOpen} onClose={() => setPaywallOpen(false)} source="history" />
     </div>
   )
 }

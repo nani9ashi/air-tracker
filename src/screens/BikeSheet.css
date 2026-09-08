@@ -58,16 +58,3 @@
   border-color: var(--accent);
 }
 
-.bike-sheet__premium {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: var(--space-3);
-  font-family: var(--font-jp);
-  font-size: var(--fs-body-sm);
-  color: var(--text-secondary);
-  background: var(--energy-soft);
-  border: 1px solid var(--energy);
-  border-radius: var(--radius-md);
-  padding: var(--space-3);
-}

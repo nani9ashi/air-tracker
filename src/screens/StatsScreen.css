@@ -43,10 +43,13 @@
   color: var(--text-muted);
 }
 
+/* v2.4.0 PR5: <p role="status"> から <button>（タップでPaywallSheetを開く）へ。
+   .history__lock-row と同じ energy 系の見た目。 */
 .stats__premium {
   display: flex;
   align-items: center;
   gap: 6px;
+  width: 100%;
   margin-top: var(--space-3);
   font-family: var(--font-jp);
   font-size: var(--fs-body-sm);
@@ -55,6 +58,11 @@
   border: 1px solid var(--energy);
   border-radius: var(--radius-md);
   padding: var(--space-3);
+  cursor: pointer;
+  transition: filter var(--dur-fast) var(--ease-out);
+}
+.stats__premium:hover {
+  filter: brightness(1.08);
 }
 
 .stats__empty {

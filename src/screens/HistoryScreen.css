@@ -70,7 +70,7 @@
   user-select: none;
 }
 
-/* 残数 CTA（ペイウォール導線の入口）。.history__premium と同じ energy 系の見た目。 */
+/* 残数 CTA（ペイウォール導線の入口。タップで PaywallSheet を開く）。 */
 .history__lock-row {
   display: flex;
   align-items: center;
@@ -108,19 +108,6 @@
   color: var(--text-muted);
 }
 
-.history__premium {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: var(--space-3);
-  font-family: var(--font-jp);
-  font-size: var(--fs-body-sm);
-  color: var(--text-secondary);
-  background: var(--energy-soft);
-  border: 1px solid var(--energy);
-  border-radius: var(--radius-md);
-  padding: var(--space-3);
-}
 
 .history__empty {
   display: flex;

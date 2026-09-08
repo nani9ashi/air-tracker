@@ -4,19 +4,21 @@ import Icon from '../components/Icon.jsx'
 import { PromptForm } from '../components/PromptSheet.jsx'
 import { useStore } from '../store/useStore.js'
 import { setActiveBike, addBike, getLimits } from '../store/store.js'
-import { track, EV } from '../lib/analytics.js'
 import './BikeSheet.css'
 
 /**
  * 自転車の切替・追加シート（ホームヘッダから開く）。
  * 複数台は有料版で解放（PLAN_LIMITS）。無料は1台。
+ *
+ * onLocked: ロック中に追加をタップしたときに呼ばれる。このシート自身が Sheet
+ * なので、購入導線（PaywallSheet）は入れ子にせず、親（HomeScreen）が
+ * このシートを閉じてから差し替えで開く。
  */
-export default function BikeSheet({ open, onClose }) {
+export default function BikeSheet({ open, onClose, onLocked }) {
   const state = useStore()
   const bikes = state.bikes
   const activeId = state.settings.activeBikeId
   const addLocked = bikes.length >= getLimits(state).bikes
-  const [showPremium, setShowPremium] = useState(false)
   // このシート自身が Sheet なので、追加の入力は入れ子の Sheet ではなく
   // 本体の差し替えで出す（入れ子にすると背景タップ・Escape が二重に効く）。
   const [mode, setMode] = useState('list')
@@ -32,8 +34,7 @@ export default function BikeSheet({ open, onClose }) {
 
   const add = () => {
     if (addLocked) {
-      track(EV.PAYWALL, { source: 'add_bike' })
-      setShowPremium(true)
+      onLocked()
       return
     }
     setMode('add')
@@ -98,12 +99,6 @@ export default function BikeSheet({ open, onClose }) {
           '＋ 自転車を追加'
         )}
       </button>
-
-      {showPremium && (
-        <p className="bike-sheet__premium" role="status">
-          <Icon name="lock" size={14} /> 複数の自転車の管理はProで解放されます
-        </p>
-      )}
     </Sheet>
   )
 }
