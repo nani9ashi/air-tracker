@@ -13,7 +13,9 @@ android {
         applicationId "com.quuki.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 15
+        // versionCode 15 は Step0（RevenueCat/Play課金権限ゲート開放）のため内部テストへ
+        // アップロード済み。v2.4.0の公開ビルドは16から（2026-09-08 訂正）。
+        versionCode 16
         versionName "2.4.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
