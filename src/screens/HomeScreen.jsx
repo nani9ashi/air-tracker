@@ -16,6 +16,7 @@ import { reminderStatus } from '../lib/notify-plan.js'
 import PumpSheet from './PumpSheet.jsx'
 import BikeSheet from './BikeSheet.jsx'
 import PromptSheet from '../components/PromptSheet.jsx'
+import PaywallSheet from '../components/PaywallSheet.jsx'
 import { useStore } from '../store/useStore.js'
 import {
   getActiveBike,
@@ -69,7 +70,9 @@ export default function HomeScreen({ onTab }) {
   const [sheetOpen, setSheetOpen] = useState(false)
   const [bikeSheetOpen, setBikeSheetOpen] = useState(false)
   const [cycleSheetOpen, setCycleSheetOpen] = useState(false)
-  const [showPremium, setShowPremium] = useState(false)
+  // カスタム間隔ロック・BikeSheetの追加ロック（複数台）が共有する単一のペイウォール。
+  // Toast のような単一インスタンス共有パターン（SettingsScreen と同じ）。
+  const [paywallSource, setPaywallSource] = useState(null)
   // 通知が有効（native＆許可済み）か。予約の可視化インラインの表示可否に使う。
   const [notifOn, setNotifOn] = useState(false)
 
@@ -108,8 +111,7 @@ export default function HomeScreen({ onTab }) {
   }
   const onCustomClick = () => {
     if (!limits.customCycle) {
-      track(EV.PAYWALL, { source: 'custom_interval' })
-      setShowPremium((v) => !v)
+      setPaywallSource('custom_interval')
       return
     }
     setCycleSheetOpen(true)
@@ -223,11 +225,6 @@ export default function HomeScreen({ onTab }) {
               {isCustom ? `${item.intervalDays}日` : 'カスタム間隔'}
             </Chip>
           </div>
-          {showPremium && (
-            <p className="home__premium" role="status">
-              <Icon name="lock" size={14} /> カスタム間隔はProで解放されます
-            </p>
-          )}
         </section>
 
         {/* 予約の可視化（native＆通知許可時のみ）。信頼＝「いつ来るか」を常時見せる。 */}
@@ -242,7 +239,17 @@ export default function HomeScreen({ onTab }) {
       </main>
 
       <PumpSheet open={sheetOpen} onClose={() => setSheetOpen(false)} onConfirm={onConfirmPump} />
-      <BikeSheet open={bikeSheetOpen} onClose={() => setBikeSheetOpen(false)} />
+      <BikeSheet
+        open={bikeSheetOpen}
+        onClose={() => setBikeSheetOpen(false)}
+        onLocked={() => {
+          // BikeSheet自身がSheetなので、入れ子にせず閉じてから差し替える
+          // （Sheetの入れ子回避パターン。BikeSheet.jsx側のmode切替と同じ考え方）。
+          setBikeSheetOpen(false)
+          setPaywallSource('add_bike')
+        }}
+      />
+      <PaywallSheet open={!!paywallSource} onClose={() => setPaywallSource(null)} source={paywallSource} />
       <PromptSheet
         open={cycleSheetOpen}
         onClose={() => setCycleSheetOpen(false)}

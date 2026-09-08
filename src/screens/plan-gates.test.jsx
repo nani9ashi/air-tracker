@@ -6,6 +6,11 @@
 // v2.2.0 で pro.bikes を Infinity にして解消したので、その解消が
 // 戻らないことをここで守る。
 //
+// v2.4.0 PR5: 各ロック導線が実ペイウォール（PaywallSheet）に繋がった。
+// PaywallSheet 自体の網羅的な検証（購入フロー・価格表示・非native案内等）は
+// PaywallSheet.test.jsx に一本化したので、ここでは「各ロック導線が正しい
+// source でペイウォールを開くこと」だけを軽量スタブで確認する。
+//
 // 方針: useStore.js だけをモックしてフィクスチャ state を流し込む。
 // getLimits / PLAN_LIMITS は**実物**を走らせるので、上限表を書き換えれば
 // このテストが落ちる。store シングルトンには触らない（vi.resetModules() と
@@ -24,10 +29,16 @@ vi.mock('../lib/notifications.js', () => ({
   requestPermissionAfterReset: vi.fn().mockResolvedValue(undefined),
   isNotificationEnabled: vi.fn().mockResolvedValue(false),
 }))
+// PaywallSheet 自体は PaywallSheet.test.jsx で網羅的に検証済み。ここでは
+// 「open のとき source を伴って描画される」ことだけ分かればよい軽量スタブにする。
+vi.mock('../components/PaywallSheet.jsx', () => ({
+  default: ({ open, source }) => (open ? <div data-testid="paywall" data-source={source} /> : null),
+}))
 
 import { makeDefaultState, PLAN_LIMITS } from '../store/store.js'
 import HomeScreen from './HomeScreen.jsx'
 import HistoryScreen from './HistoryScreen.jsx'
+import StatsScreen from './StatsScreen.jsx'
 import SettingsScreen from './SettingsScreen.jsx'
 import BikeSheet from './BikeSheet.jsx'
 
@@ -90,12 +101,12 @@ describe('カスタム間隔チップ', () => {
     expect(screen.queryByRole('button', { name: 'カスタム間隔（Proで解放）' })).not.toBeInTheDocument()
   })
 
-  it('free で押すとロック文言が出て、入力シートは開かない', async () => {
+  it('free で押すと PaywallSheet(source=custom_interval) が開き、入力シートは開かない', async () => {
     fx.state = seed('free')
     const user = userEvent.setup()
     render(<HomeScreen />)
     await user.click(screen.getByRole('button', { name: 'カスタム間隔（Proで解放）' }))
-    expect(screen.getByText('カスタム間隔はProで解放されます')).toBeInTheDocument()
+    expect(screen.getByTestId('paywall')).toHaveAttribute('data-source', 'custom_interval')
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
@@ -123,6 +134,41 @@ describe('履歴のロック行', () => {
     render(<HistoryScreen />)
     expect(screen.queryByText(/はProで全件表示できます/)).not.toBeInTheDocument()
   })
+
+  it('タップすると PaywallSheet(source=history) が開く', async () => {
+    fx.state = seed('free', { historyCount: 5 })
+    const user = userEvent.setup()
+    render(<HistoryScreen />)
+    await user.click(screen.getByRole('button', { name: '残り2件はProで全件表示' }))
+    expect(screen.getByTestId('paywall')).toHaveAttribute('data-source', 'history')
+  })
+})
+
+// ------------------------------------------------------------
+// ヒートマップのロック導線（StatsScreen）
+// 画面を開いただけの EV.PAYWALL 計測（タップ非依存）はここでは検証しない
+// （analytics.js はモックしていないため、DEV では console.debug の no-op）。
+// ------------------------------------------------------------
+describe('ヒートマップのロック導線', () => {
+  it('free はロック案内がボタンになっている', () => {
+    fx.state = seed('free', { historyCount: 1 })
+    render(<StatsScreen />)
+    expect(screen.getByRole('button', { name: /無料版は直近1ヶ月/ })).toBeInTheDocument()
+  })
+
+  it('タップすると PaywallSheet(source=heatmap) が開く', async () => {
+    fx.state = seed('free', { historyCount: 1 })
+    const user = userEvent.setup()
+    render(<StatsScreen />)
+    await user.click(screen.getByRole('button', { name: /無料版は直近1ヶ月/ }))
+    expect(screen.getByTestId('paywall')).toHaveAttribute('data-source', 'heatmap')
+  })
+
+  it.each(PAID)('%s はロック案内が出ない', (plan) => {
+    fx.state = seed(plan, { historyCount: 1 })
+    render(<StatsScreen />)
+    expect(screen.queryByText(/無料版は直近1ヶ月/)).not.toBeInTheDocument()
+  })
 })
 
 // ------------------------------------------------------------
@@ -145,10 +191,48 @@ describe('バックアップ', () => {
     expect(screen.getByLabelText('バックアップファイルを選択')).toBeInTheDocument()
     expect(screen.getByText('インポートは現在のデータを置き換えます。')).toBeInTheDocument()
   })
+
+  it('free: 書き出しタップで PaywallSheet(source=backup_export) が開く', async () => {
+    fx.state = seed('free')
+    const user = userEvent.setup()
+    render(<SettingsScreen />)
+    await user.click(screen.getByRole('button', { name: '書き出し（Proで解放）' }))
+    expect(screen.getByTestId('paywall')).toHaveAttribute('data-source', 'backup_export')
+  })
+
+  it('free: 読み込みタップで PaywallSheet(source=backup_import) が開く', async () => {
+    fx.state = seed('free')
+    const user = userEvent.setup()
+    render(<SettingsScreen />)
+    await user.click(screen.getByRole('button', { name: '読み込み（Proで解放）' }))
+    expect(screen.getByTestId('paywall')).toHaveAttribute('data-source', 'backup_import')
+  })
 })
 
 // ------------------------------------------------------------
-// 自転車の追加 — v2.2.0 で変わったところ
+// アップグレードセクション（SettingsScreen・v2.4.0 PR5で新設）
+// ------------------------------------------------------------
+describe('アップグレードセクション', () => {
+  it('free: CTAが出て、押すと PaywallSheet(source=settings_upgrade) が開く', async () => {
+    fx.state = seed('free')
+    const user = userEvent.setup()
+    render(<SettingsScreen />)
+    expect(screen.getByRole('button', { name: 'Proにアップグレード' })).toBeInTheDocument()
+    expect(screen.queryByText('Pro（購入済み）')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Proにアップグレード' }))
+    expect(screen.getByTestId('paywall')).toHaveAttribute('data-source', 'settings_upgrade')
+  })
+
+  it.each(PAID)('%s: 購入済みバッジのみでCTAは出ない', (plan) => {
+    fx.state = seed(plan)
+    render(<SettingsScreen />)
+    expect(screen.getByText('Pro（購入済み）')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Proにアップグレード' })).not.toBeInTheDocument()
+  })
+})
+
+// ------------------------------------------------------------
+// 自転車を追加 — v2.2.0 で変わったところ
 // ------------------------------------------------------------
 describe('自転車を追加', () => {
   it('free（1台）はロック文言', () => {
@@ -164,12 +248,12 @@ describe('自転車を追加', () => {
     expect(screen.queryByRole('button', { name: '自転車を追加（Proで解放）' })).not.toBeInTheDocument()
   })
 
-  it('free で押すと「Proで解放」トーストが出る（＝文言と実装が一致）', async () => {
+  it('free で押すと PaywallSheet(source=settings_add_bike) が開く（文言と実装が一致）', async () => {
     fx.state = seed('free')
     const user = userEvent.setup()
     render(<SettingsScreen />)
     await user.click(screen.getByRole('button', { name: '自転車を追加（Proで解放）' }))
-    expect(screen.getByText('複数の自転車はProで解放されます')).toBeInTheDocument()
+    expect(screen.getByTestId('paywall')).toHaveAttribute('data-source', 'settings_add_bike')
   })
 
   it.each(PAID)('%s では「Proで解放」の案内が一切出ない（回帰テスト）', async (plan) => {
@@ -184,20 +268,22 @@ describe('自転車を追加', () => {
     expect(screen.getByRole('dialog', { name: '自転車を追加' })).toBeInTheDocument()
   })
 
-  it('BikeSheet: free（1台）はロック、押すと Proで解放の案内', async () => {
+  it('BikeSheet: free（1台）はロック、押すと onLocked が呼ばれる（親がPaywallSheetを開く）', async () => {
     fx.state = seed('free')
     const user = userEvent.setup()
-    render(<BikeSheet open onClose={vi.fn()} />)
+    const onLocked = vi.fn()
+    render(<BikeSheet open onClose={vi.fn()} onLocked={onLocked} />)
     await user.click(screen.getByRole('button', { name: '自転車を追加（Proで解放）' }))
-    expect(screen.getByText('複数の自転車の管理はProで解放されます')).toBeInTheDocument()
+    expect(onLocked).toHaveBeenCalledOnce()
   })
 
-  it.each(PAID)('BikeSheet: %s は追加フォームに進む（Proで解放の案内は出ない）', async (plan) => {
+  it.each(PAID)('BikeSheet: %s は追加フォームに進む（onLockedは呼ばれない）', async (plan) => {
     fx.state = seed(plan)
     const user = userEvent.setup()
-    render(<BikeSheet open onClose={vi.fn()} />)
+    const onLocked = vi.fn()
+    render(<BikeSheet open onClose={vi.fn()} onLocked={onLocked} />)
     await user.click(screen.getByRole('button', { name: '自転車を追加' }))
-    expect(screen.queryByText(/複数の自転車.*Pro/)).not.toBeInTheDocument()
+    expect(onLocked).not.toHaveBeenCalled()
     expect(screen.getByLabelText('名前')).toBeInTheDocument()
     // 入れ子の Sheet になっていないこと
     expect(screen.getAllByRole('dialog')).toHaveLength(1)

@@ -1,8 +1,9 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import GlassCard from '../components/GlassCard.jsx'
 import StatTile from '../components/StatTile.jsx'
 import Heatmap from '../components/Heatmap.jsx'
 import Icon from '../components/Icon.jsx'
+import PaywallSheet from '../components/PaywallSheet.jsx'
 import { useStore } from '../store/useStore.js'
 import { getActiveAirItem, getLimits } from '../store/store.js'
 import { averageIntervalDays, currentStreak, totalCount, cycleTrend, sortedHistory } from '../lib/stats.js'
@@ -18,6 +19,7 @@ export default function StatsScreen() {
   const total = totalCount(item.history)
   const trend = cycleTrend(item.history, item.intervalDays)
   const limits = getLimits(state)
+  const [paywallOpen, setPaywallOpen] = useState(false)
 
   // 無料は直近1ヶ月（約5週）。Pro/Premium は最古の記録〜現在をカバー（18〜53週）。
   const heatmapWeeks = (() => {
@@ -29,6 +31,8 @@ export default function StatsScreen() {
   })()
 
   // 全期間ヒートがロックされている無料ユーザーが統計を開いた＝ペイウォール到達（画面表示ごと1回）。
+  // ⚠ これは「画面を開いただけ」の別軸の計測で、タップで実際にペイウォールを
+  // 開いたときの EV.PAYWALL（PaywallSheet内で発火）とは独立に残す（v2.4.0 PR5）。
   const heatmapLocked = limits.heatmapWeeks !== 'auto' && total > 0
   useEffect(() => {
     if (heatmapLocked) track(EV.PAYWALL, { source: 'heatmap' })
@@ -66,14 +70,16 @@ export default function StatsScreen() {
             <>
               <Heatmap history={item.history} intervalDays={item.intervalDays} weeks={heatmapWeeks} />
               {limits.heatmapWeeks !== 'auto' && (
-                <p className="stats__premium" role="status">
+                <button type="button" className="stats__premium" onClick={() => setPaywallOpen(true)}>
                   <Icon name="lock" size={14} /> 無料版は直近1ヶ月（Proで全期間）
-                </p>
+                </button>
               )}
             </>
           )}
         </GlassCard>
       </main>
+
+      <PaywallSheet open={paywallOpen} onClose={() => setPaywallOpen(false)} source="heatmap" />
     </div>
   )
 }
