@@ -10,20 +10,47 @@
 // 🔒 設計制約（README §8 / バックログ 1b-1・2026-08-20確定・最重要）:
 // settings.plan を課金状態の source of truth にしない。RevenueCat の
 // 購入状態を起点にし、localStorage（= settings.plan）は表示用キャッシュに
-// 留める。起動時のリストア（restoreEntitlementOnStartup）は billing.js に
-// 続けて実装する（v2.4.0 PR3）。このPRでは購入導線とDEVシミュレーションの
-// 骨格のみを用意する——どの画面からもまだ呼ばれていない。
+// 留める。起動時のリストア（restoreEntitlementOnStartup、v2.4.0 PR3）が
+// 唯一の降格経路——「照会が unknown（オフライン等）のときは絶対に降格しない」
+// が中心原則。決定表（8行）は billing.reconcile.dt.test.js に固定してある。
+//
+// ペイウォールUI（v2.4.0 PR4: PaywallSheet.jsx）は自前実装。
+// RevenueCatUI.presentPaywall() は使わない——価格文言・エラー文言・非native
+// 案内をこちら側で完全に制御するため。
 // ============================================================
 import { Capacitor } from '@capacitor/core'
 import { Purchases } from '@revenuecat/purchases-capacitor'
-import { setPlan } from '../store/store.js'
+import { setPlan, getState } from '../store/store.js'
 
 const NATIVE = Capacitor.isNativePlatform()
 const API_KEY = import.meta.env.VITE_REVENUECAT_API_KEY
 
+// 🔒 事故防止ガード（2026-09-08・Step0完了時に確定）: 本番 native ビルドに
+// RevenueCat の test_ キーが混入していたら起動時に落とす。
+// test_ キーは本番では常にエンタイトルメント照会に失敗するため、実購入確認まで
+// 気づけない「静かな失敗」になる——RevenueCatのオンボーディングが最初に
+// test_ 始まりのキーを発行するため、本番用 goog_ キーへの差し替え漏れが
+// 典型的な事故になる。DEV は意図的に test_ を使うことがあるため対象外。
+// NATIVE に限定するのは、web(公開PWA) は Purchases を一切呼ばず無関係な
+// ビルド設定ミスで公開中のPWAを道連れに落としたくないため（Capacitor.
+// isNativePlatform() は実行時判定なので、この判定自体もPWA利用者には
+// 常に false になり、このガードは native ビルド実行時にしか効かない）。
+if (NATIVE && !import.meta.env.DEV && API_KEY?.startsWith('test_')) {
+  throw new Error(
+    '[billing] 本番ビルドに RevenueCat の test_ キーが設定されています。VITE_REVENUECAT_API_KEY を確認してください。',
+  )
+}
+
 // RevenueCat 側の entitlement 識別子。store.js の 'paid' 値と1:1で対応させる
 // （Step0セットアップ手順書で同じ文字列を使うよう指示済み）。
 export const ENTITLEMENT_ID = 'paid'
+
+// PaywallSheet が「本物の購入導線」を出してよいか。
+// native は常に true（Step0未完了でも purchase() 内でエラーになるだけ）。
+// web は DEV のみ true（devSimulatedPurchase で動作確認するため）。
+// 本番web/PWA は false——呼び出し側（PaywallSheet）はこれを見て、CTAの代わりに
+// 「Androidアプリからのみ」の案内文を出す。
+export const CAN_PURCHASE = NATIVE || import.meta.env.DEV
 
 // アプリ起動時に一度呼ぶ。APIキー未設定（Step0未完了）や web では no-op。
 export async function initBilling() {
@@ -104,6 +131,31 @@ async function devSimulatedPurchase() {
   await new Promise((resolve) => setTimeout(resolve, 600)) // purchasing 状態を目視できる遅延
   setPlan('paid')
   return { ok: true, simulated: true }
+}
+
+// ============================================================
+// 起動時のエンタイトルメント・リストア/整合（v2.4.0 PR3）。
+// ============================================================
+
+// キャッシュ済み plan と照会結果から、次に setPlan すべき値を決める純関数。
+// 変更不要なら null（呼び出し側は setPlan を呼ばない＝無用な commit/persist を避ける）。
+//
+// 🔒 中心原則: status が 'confirmed' でない（＝オフライン等で unknown）ときは
+// 絶対に降格しない。決定表8行は billing.reconcile.dt.test.js に固定。
+export function reconcilePlan(cachedPlan, restoreResult) {
+  if (restoreResult.status !== 'confirmed') return null // 不明のまま＝何もしない
+  const next = restoreResult.entitled ? 'paid' : 'free'
+  return next === cachedPlan ? null : next
+}
+
+// アプリ起動時に一度呼ぶ（initBilling の後）。現在のキャッシュ値と実際の
+// エンタイトルメントを照会し、確定した差分だけ setPlan で反映する。
+export async function restoreEntitlementOnStartup() {
+  const cached = getState().settings.plan
+  const result = await checkEntitlement()
+  const next = reconcilePlan(cached, result)
+  if (next) setPlan(next)
+  return result
 }
 
 // ユーザーが購入ダイアログを自分で閉じた/キャンセルしたことを、他の失敗と区別する

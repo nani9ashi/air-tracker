@@ -12,16 +12,25 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 // ⚠ vi.mock はファイル先頭へ巻き上げられる。ミュータブルな値は vi.hoisted で作り、
 // モックのファクトリからはそれを参照する関数を返す（NATIVE の値を
 // vi.resetModules() をまたいで切り替えるため）。
-const { nativeFlag, configure, getCustomerInfo, restorePurchasesMock, getOfferings, purchasePackage, setPlan } =
-  vi.hoisted(() => ({
-    nativeFlag: { value: true },
-    configure: vi.fn(),
-    getCustomerInfo: vi.fn(),
-    restorePurchasesMock: vi.fn(),
-    getOfferings: vi.fn(),
-    purchasePackage: vi.fn(),
-    setPlan: vi.fn(),
-  }))
+const {
+  nativeFlag,
+  configure,
+  getCustomerInfo,
+  restorePurchasesMock,
+  getOfferings,
+  purchasePackage,
+  setPlan,
+  getState,
+} = vi.hoisted(() => ({
+  nativeFlag: { value: true },
+  configure: vi.fn(),
+  getCustomerInfo: vi.fn(),
+  restorePurchasesMock: vi.fn(),
+  getOfferings: vi.fn(),
+  purchasePackage: vi.fn(),
+  setPlan: vi.fn(),
+  getState: vi.fn(),
+}))
 
 vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => nativeFlag.value } }))
 vi.mock('@revenuecat/purchases-capacitor', () => ({
@@ -33,7 +42,7 @@ vi.mock('@revenuecat/purchases-capacitor', () => ({
     purchasePackage,
   },
 }))
-vi.mock('../store/store.js', () => ({ setPlan }))
+vi.mock('../store/store.js', () => ({ setPlan, getState }))
 
 // billing.js を作り直して読み込む。NATIVE/API_KEY はロード時に一度だけ確定するため、
 // これらを変えるテストは必ずこのヘルパーで読み直す。
@@ -58,6 +67,7 @@ beforeEach(() => {
   restorePurchasesMock.mockResolvedValue(entitled())
   getOfferings.mockResolvedValue(withOffering())
   purchasePackage.mockResolvedValue(entitled())
+  getState.mockReturnValue({ settings: { plan: 'free' } })
 })
 
 afterEach(() => {
@@ -79,8 +89,11 @@ describe('initBilling', () => {
     expect(configure).toHaveBeenCalledWith({ apiKey: 'test-key' })
   })
 
-  it('APIキー未設定（Step0未完了）なら configure を呼ばない', async () => {
-    // .env.local に VITE_REVENUECAT_API_KEY が無い今の実環境と同じ状態。
+  it('APIキー未設定なら configure を呼ばない', async () => {
+    // Step0完了後は .env.local に実キーが入っているため、周囲の環境に頼らず
+    // 明示的に空へスタブする（Step0前は「今の実環境と同じ」で暗黙に緑だったが、
+    // 2026-09-08 に本番キー設定が完了して初めてこの依存が壊れているのを検出した）。
+    vi.stubEnv('VITE_REVENUECAT_API_KEY', '')
     const { initBilling } = await loadBilling()
     await initBilling()
     expect(configure).not.toHaveBeenCalled()
@@ -232,5 +245,47 @@ describe('purchase — web（DEV限定シミュレーション）', () => {
     expect(setPlan).toHaveBeenCalledWith('paid')
     expect(getOfferings).not.toHaveBeenCalled()
     expect(purchasePackage).not.toHaveBeenCalled()
+  })
+})
+
+describe('CAN_PURCHASE（PaywallSheetが実CTAを出してよいか）', () => {
+  it('native: 常に true', async () => {
+    const { CAN_PURCHASE } = await loadBilling()
+    expect(CAN_PURCHASE).toBe(true)
+  })
+
+  it('web + DEV（vitestでは常にDEV=true）: true', async () => {
+    nativeFlag.value = false
+    const { CAN_PURCHASE } = await loadBilling()
+    expect(CAN_PURCHASE).toBe(true)
+  })
+})
+
+describe('restoreEntitlementOnStartup（起動時リストア。決定表は billing.reconcile.dt.test.js）', () => {
+  it('checkEntitlement を呼び、reconcilePlan が変更ありと判断したときだけ setPlan する', async () => {
+    getState.mockReturnValue({ settings: { plan: 'free' } })
+    getCustomerInfo.mockResolvedValue(entitled()) // confirmed/entitled → 'free'→'paid'
+    const { restoreEntitlementOnStartup } = await loadBilling()
+    const result = await restoreEntitlementOnStartup()
+    expect(result).toEqual({ ok: true, status: 'confirmed', entitled: true })
+    expect(setPlan).toHaveBeenCalledWith('paid')
+  })
+
+  it('照会が unknown（オフライン等）なら setPlan を一切呼ばない（降格しない）', async () => {
+    getState.mockReturnValue({ settings: { plan: 'paid' } })
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    getCustomerInfo.mockRejectedValueOnce(new Error('network'))
+    const { restoreEntitlementOnStartup } = await loadBilling()
+    await restoreEntitlementOnStartup()
+    expect(setPlan).not.toHaveBeenCalled()
+    warn.mockRestore()
+  })
+
+  it('キャッシュと結果が一致（冪等）なら setPlan を呼ばない', async () => {
+    getState.mockReturnValue({ settings: { plan: 'paid' } })
+    getCustomerInfo.mockResolvedValue(entitled())
+    const { restoreEntitlementOnStartup } = await loadBilling()
+    await restoreEntitlementOnStartup()
+    expect(setPlan).not.toHaveBeenCalled()
   })
 })

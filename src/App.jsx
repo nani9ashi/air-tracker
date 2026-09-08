@@ -11,7 +11,7 @@ import { applyTheme, resolveTheme, watchSystemTheme } from './lib/theme.js'
 import { applyStatusBar } from './lib/statusbar.js'
 import { syncActiveReminder } from './lib/notifications.js'
 import { installReminderSync } from './lib/reminder-sync.js'
-import { initBilling } from './lib/billing.js'
+import { initBilling, restoreEntitlementOnStartup } from './lib/billing.js'
 
 function useHash() {
   const [hash, setHash] = useState(window.location.hash)
@@ -49,11 +49,14 @@ export default function App() {
     return installReminderSync()
   }, [])
 
-  // RevenueCat の初期化（native かつ APIキー設定済みのときのみ実際に configure する。
-  // Step0未完了の現時点では no-op）。エンタイトルメントの起動時リストアは
-  // v2.4.0 PR3 で billing.js に追加する。
+  // RevenueCat の初期化 → 起動時リストア（この順で待つ: configure 前に
+  // getCustomerInfo を呼んでも意味がない）。restoreEntitlementOnStartup は
+  // 照会が unknown（オフライン等）のときは setPlan を呼ばない＝降格しない。
   useEffect(() => {
-    initBilling()
+    ;(async () => {
+      await initBilling()
+      await restoreEntitlementOnStartup()
+    })()
   }, [])
 
   // 開発時のみ #preview でコンポーネントカタログ。
