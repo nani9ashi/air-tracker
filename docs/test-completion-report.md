@@ -720,3 +720,182 @@ Android は `gradlew clean bundleRelease` で実際に AAB を作り、展開し
 6. ミュータント台帳の作り直し
 7. 未到達分岐の説明（Branches 86.04%。§13から継続課題）
 8. バックログ NEW-1 の記述を「単一原因・解消済み」に更新（本レポートで訂正済みだがバックログ本体は別途）
+
+
+---
+
+## 15. 追補 — v2.4.0 での対応（2026-09-10）
+
+v2.4 = レーン2「IAP 実装」。README §8 が非交渉事項として掲げてきた
+「¥300 買い切りのペイウォールの枠組みを入れてからリリースする」を埋めた。
+PR0〜PR6 の 7 本を `main` へ順にマージした（PR構成は
+`clever-juggling-pinwheel.md`）。
+
+| PR | 内容 |
+|---|---|
+| PR0 | GoatCounter サイトコードを本番ビルドへ注入（`deploy.yml` の build ステップに Actions secret を追加。1b-3b のコード側） |
+| PR1 | `plan` を `'free'\|'pro'\|'premium'` の3値から `'free'\|'paid'` の2値へ整理。旧値は `LEGACY_PLAN_ALIASES` で読み取り時に吸収（加算的移行・`STORAGE_KEY` 不変） |
+| PR2 | `src/lib/billing.js` 骨格 + DEV 購入シミュレーション。`@revenuecat/purchases-capacitor@13.5.0` 追加。版番号 2.4.0 / versionCode 15 |
+| PR3 | 起動時リストア（`reconcilePlan` / `restoreEntitlementOnStartup`）+ 決定表8行の固定。本番 native ビルドに `test_` キーが混入したら起動時に落とすガード |
+| PR4 | `src/components/PaywallSheet.jsx`（自前実装。`RevenueCatUI.presentPaywall()` は不使用）。idle/purchasing/success/error の4状態 |
+| PR5 | 7箇所のロック導線を PaywallSheet に接続。設定画面に「アップグレード」セクション新設。散らばっていた `EV.PAYWALL` 発火を PaywallSheet に一本化 |
+| PR6 | ブランド表記を QUUKI 全大文字に統一。versionCode 16（15 は Step0 の請求権限ゲート開放で内部テストへアップロード済み）。本追補 |
+
+### 完了基準の再評価
+
+| # | 完了基準 | v2.3.0 | v2.4.0 | 根拠 |
+|---|---|:--:|:--:|---|
+| 1 | 全テストが成功する | 達成 | **達成** | 888/888 pass（23 files） |
+| 2 | 既存テストを 1 件も壊していない | 達成（無変更） | **意図的に変更** | PR1 で `'pro'/'premium'` を主張する assert を多数 `'paid'` へ書き換え。PR5 で `plan-gates.test.jsx` を「文言固定」から「正しい `source` で開くか」へ大幅書き換え。いずれも予測と実測の一致をマージ条件にした |
+| 6 | 分岐カバレッジの実測 | 86.04% | **87.12%**（Statements 89.6%） | `billing.js` 97.57% / `PaywallSheet.jsx` 100% |
+
+完了基準 #2 は v2.3.0 の「無変更」から v2.2.0 型の「意図して直した」に戻った。
+値集合そのものを変える PR1 で、上限や値を主張していたテストが落ちるのは正しい。
+加えて PR3 で 1 件、**環境依存だったテストが Step0 完了で暗黙に緑→赤**になって
+いたのを発見して直した（下記「計画時の想定と異なった点」）。
+
+### テスト件数
+
+| 指標 | v2.3.0 | v2.4.0 |
+|---|---:|---:|
+| テスト件数 | 831 | **888** |
+| テストファイル数 | 20 | **23** |
+| カバレッジ Statements | 83.49% | **89.6%** |
+| カバレッジ Branches | 86.04% | **87.12%** |
+
+新規ファイル: `billing.test.js`(27) / `billing.reconcile.dt.test.js`(8) /
+`PaywallSheet.test.jsx`(11)。既存への追加: `store.test.js`(+2, normalizePlan 直接と
+legacy alias) / `plan-gates.test.jsx`(27→37) / `store.migrate-pairwise.test.js` は
+件数不変で期待値のみ更新。
+
+### 残存リスクの変化
+
+| リスク | v2.3.0 | v2.4.0 |
+|---|---|---|
+| ¥300 ペイウォールが無く、実際に課金できる導線が存在しない（README §8 の非交渉事項） | 未対応 | **コードは解消**（`PaywallSheet` + `billing.js` + 7ロック導線。実購入の成立は Step0 STEP5 と Google Play 審査待ち） |
+| premium が差別化要素を持たない空の段（§13 の新規未決事項） | 未決 | **解消**（3値→2値。空段 `premium` 自体を廃止し、`LEGACY_PLAN_ALIASES` で旧データを `paid` へ吸収） |
+| `settings.plan` がクライアント側 entitlement の信頼の起点（疑義登記簿 #6） | — | **コードは解消**（`reconcilePlan` の決定表 行8: localStorage 改ざんで見せかけた `paid` を、リストア照会が `confirmed/not-entitled` を返したときに `free` へ是正） |
+| オフライン起動で有料状態が保てるか（機内モード受け入れ基準） | — | **コードで担保**（決定表 行6: `unknown` では絶対に降格しない。行を反転させると行3・行6が落ちるミューテーション確認済み。実機の機内モード確認は Step0 待ち） |
+| GoatCounter が本番ビルドで一度も読み込まれていなかった | 未認識 | **配線は解消**（PR0 で CI に secret 注入。ただし secret 登録は本人作業。native AAB では従来どおり計測コードごと DCE される＝設計どおり） |
+| Web/PWA で通知が来ない | 未対応 | 未対応（§13 から持ち越し） |
+| `useStore` の selector で無限ループ | 未対応 | 未対応（§13 から持ち越し） |
+
+### テストで守っていないこと（v2.4.0 時点）— 最重要
+
+**jsdom とモック SDK のテストが証明しているのは、整合ロジックと UI 配線の
+内部一貫性だけ**である。次はいずれも証明していない:
+
+- **RevenueCat の実際のレシート検証**（サーバ側。Play サービスアカウント連携が
+  正しく効いているか）
+- **Play Billing の acknowledge フロー**。購入を 3 日以内に acknowledge しないと
+  Google が自動返金する。RevenueCat がこれを代行する前提だが、実挙動は未確認
+- **実機ライセンステスター購入がアンインストール／再インストールを生き延びること**。
+  `restoreEntitlementOnStartup` の決定表 行2・行7 が想定するシナリオそのもの
+- **`Purchases.configure()` が実機で成功すること**。`.env.local` の `goog_` キーが
+  RevenueCat プロジェクトと正しく対応し、Offering `upgrade` / パッケージ
+  `pro_upgrade` が実際に取得できるか
+- **機内モードで実機の Purchases SDK が何を返すか**。決定表 行6 は「`unknown` なら
+  降格しない」を固定したが、SDK が本当に reject するのか、古いキャッシュを
+  返すのか、別のエラー形を返すのかは実機でしか分からない
+- **`isUserCancellation` の正規表現 `/cancel/i`** が RevenueCat / Play の実際の
+  キャンセルエラーのメッセージ・コードに一致するか（`backup.js` の
+  `isCancellation` と同じ状況。実機で観測してから確定する）
+- **`test_` キー起動ガード**（`billing.js` の該当ブロック、カバレッジ未到達
+  39-42 行）は unit test で負側分岐を踏めない。vitest では
+  `import.meta.env.DEV` を false にできないため（`notifications.test.js` の
+  `fireTestNotification` と同じ既知の制約）。ソース存在とビルド成果物の
+  実測で担保する
+- **DEV 購入シミュレーション（`devSimulatedPurchase`）が本番から消えること**は
+  ソース／web+native ビルド／AAB 展開後 JS の 3〜4 層 ripgrep 確認で担保
+  （v2.2.0 リスク#5 と同じ方式。下記「検証方法」に実測結果）
+
+### ミュータント調査
+
+各 PR で検証性の高いものをその場で注入・撃墜した。
+
+| 注入 | 結果 |
+|---|---|
+| `reconcilePlan` の行6（`unknown` → no-op）を反転（`unknown` でも降格する側に） | 決定表テストの行3・行6 が落ちる（撃墜） |
+| `billing.js` の `isUserCancellation` の `/cancel/i` を別文字列に（PR2） | `purchase — native` のキャンセルテストが落ちる（撃墜） |
+| `billing.js` の `entitled` ガード（購入成功時のみ `setPlan`）を反転（PR2） | `purchase — native` の not-entitled テストが落ちる（撃墜） |
+| `LEGACY_PLAN_ALIASES` を空に（PR1） | `normalizePlan`/`setPlan` 系の 48 件が落ちる（予測=実測） |
+
+台帳の作り直し（§12 残件）は依然未着手。
+
+### 計画時の想定と異なった点（正直に）
+
+**環境に依存していたテストが、Step0 完了で暗黙に壊れていた。**
+`billing.test.js` の「APIキー未設定なら `configure` を呼ばない」テストは、
+`.env.local` に `VITE_REVENUECAT_API_KEY` が無いという**周囲の環境**に
+暗黙に頼っていた。Step0 で本番 `goog_` キーを `.env.local` に入れた瞬間に
+`API_KEY` が真値になり、このテストが緑→赤に変わった。`vi.stubEnv` で
+明示的に空へスタブして直した。「環境に頼るテストは環境が変わると黙って
+壊れる」の実例として記録する（PR3 で対応）。
+
+もう一点、`plan-gates.test.jsx` は計画で「大幅書き換えになる」と予告して
+いたとおり、6箇所に散らばった「Proで解放」の固定文言を個別に検証する
+前提が PaywallSheet 化で消えた。PaywallSheet を軽量スタブに差し替え、
+「各ロック導線が正しい `source` で開くか」だけを検証する形にし、シート
+本体の網羅検証は `PaywallSheet.test.jsx`（11件）に一本化した。
+
+### 検証方法
+
+**`npm run dev` のブラウザで DEV 購入シミュレーションを実地確認した。**
+`custom_interval` ロック → 「購入する」→ purchasing → success → 自動 close →
+「カスタム間隔」チップのロック解除、設定画面「アップグレード」欄が
+「Pro（購入済み）」に変化、版フッター5タップで `free` に戻すと全ロックが
+復活、`settings_upgrade` 入口も同じ `PaywallSheet` を開く、までを通した。
+
+**Android は `gradlew clean bundleRelease` で versionCode 16 の AAB を実際に
+作った。** マージ後マニフェスト（`merged_manifest/release`）で確認:
+
+- `android:versionCode="16"` / `android:versionName="2.4.0"`
+- `com.android.vending.BILLING`（RevenueCat AAR から自動マージ。手動追加不要）
+- `android.permission.ACCESS_NETWORK_STATE`（同上。RevenueCat のオフライン
+  判定用と思われる。§ v2.3.0 から増えた分はこの2つだけで、他に新規権限なし）
+
+DEV 限定コードの消滅を AAB 展開後 JS で実測（すべて 0 件）:
+`devSimulatedPurchase` / `fireTestNotification` / `bumpPlan` / 「開発ツール」/
+「開発シミュレーション」/「テスト通知」/ `window.setPlan` / `window.getPlan` /
+`#preview` / `PreviewScreen` / `MUTATION-CHECK`。
+一方で `purchasePackage`(5) / `getCustomerInfo`(3) / `restorePurchases`(2) /
+`"paid"`(7) は残存し、native の課金コード本体はバンドルに入っている。
+
+`test_` キーガードは、バンドル内に `"test_"` 文字列（`.startsWith('test_')`
+の比較対象）と実際の本番キー `goog_…` の両方が入っており、埋め込みキーが
+`goog_` 始まりであることを確認した（ガードは発火しない）。
+
+**GoatCounter は native AAB からは丸ごと DCE されている**（`paywall_view` /
+`pwa_install` / `purchase` / `gc.zgo.at` いずれも 0 件）。`.env.local` に
+`VITE_GOATCOUNTER_CODE` が無く `ENABLED` が静的に `false` になるため。
+`EV.PAYWALL` / `EV.PURCHASE` の計測が実際に効くのは PR0 で secret を入れた
+**web ビルドのみ**。native は元から analytics 無しで、これは `analytics.js`
+の設計どおりの「安全な no-op」。
+
+署名は `jarが検証されました`（署名者 `CN=Quuki, O=nani9ashi, C=JP` ——
+アップロード鍵の DN は鍵生成時に確定しており Play App Signing に登録済みの
+ため変更しない。ユーザーには見えない識別子であり QUUKI 統一の対象外）。
+AAB サイズ 18,783,851 バイト（約 17.9MB。vc15 の 18,782,505 バイトから
++1,346 バイト。20MB 未満を維持）。
+
+### 次に残っているもの
+
+**コードとして完成できる範囲は v2.4.0 で出し切った。** 以下はコード外
+（外部 SLA 依存・本人の手動作業）:
+
+1. **Step0 STEP5**（支払いプロフィール / バーチャルオフィス住所）。実機
+   ライセンステスター購入がこれ待ち（本人）
+2. **実機での購入確認一式**（本人）: ライセンステスター購入 → 解放 →
+   アンインストール → 再インストール → 復元、機内モード起動での有料維持、
+   localStorage 改ざん → 起動時リストアによる是正。手順書
+   `QUUKI 1b-1 IAP 実機確認手順.md` を Drive に作成すること
+3. **1b-4b（本番購入確認）** — Google Play 審査通過に構造的に依存（制御外）。
+   IARC 再申告（「デジタル購入: あり」）と Data safety の見直しを含む
+4. **GoatCounter アカウント作成 + Actions secret `VITE_GOATCOUNTER_CODE` 登録**（本人）
+5. `isUserCancellation` の正規表現を実機のキャンセルエラー観測で確定
+6. Web/PWA の通知（§13 から持ち越し）
+7. `useStore` の selector のメモ化 / 等価比較（§13 から持ち越し）
+8. 未到達分岐の説明（Branches 87.12%。特に `billing.js` の `test_` キーガード負側）
+9. `store.migrate-pairwise.test.js` の入力フィクスチャは意図的に `'pro'`/`'premium'`
+   のまま残してある（旧データ互換の検証として有効）。将来 alias を外すなら
+   このフィクスチャも一緒に消すこと
