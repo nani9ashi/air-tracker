@@ -29,7 +29,13 @@ jobs:
       - run: npm ci
       # テストが落ちたらビルドせず、deploy ジョブ（needs: build）も走らせない。
       - run: npm test
+      # GoatCounter のサイトコードは .env.local（gitignore）に置いていて CI には
+      # 渡らない。本番ビルド時だけ Actions secret から注入する（analytics.js は
+      # import.meta.env.PROD && !!VITE_GOATCOUNTER_CODE のときだけ計測スクリプトを
+      # 読み込む）。secret 未設定でもビルドは通り、計測が無効なだけ。
       - run: npm run build
+        env:
+          VITE_GOATCOUNTER_CODE: ${{ secrets.VITE_GOATCOUNTER_CODE }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
