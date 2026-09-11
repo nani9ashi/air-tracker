@@ -105,7 +105,6 @@ export default function HomeScreen({ onTab }) {
     setSheetOpen(false)
   }
   const onSelectPreset = (d) => {
-    setShowPremium(false)
     setCycle(d)
     syncActiveReminder({ userAction: true }) // 周期変更→再スケジュール（超過なら直近20時にキャッチアップ）
   }
