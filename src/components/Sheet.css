@@ -25,8 +25,25 @@
   border-top-right-radius: 28px;
   border-top: 1px solid var(--glass-border);
   box-shadow: var(--shadow-lg);
-  padding: 18px var(--gutter-screen) calc(var(--space-6) + var(--safe-bottom));
+  padding: 0 var(--gutter-screen) calc(var(--space-6) + var(--safe-bottom));
   animation: cad-sheet 0.28s var(--ease-out) both;
+}
+
+/* ドラッグで閉じるための実タップ領域。見た目のピル(.sheet__handle)は
+   4pxのままだが、当たり判定はここで確保する。
+   padding: 24 + 4(handle) + 16 = 44px（tokens.css の --tap-min:44px に合わせた）。
+   旧 panel の padding-top(18px)をこの要素のpadding-topへ、旧 handle の
+   margin-bottom(16px)をpadding-bottomへ移し替えた形——上の余白が+6pxされる
+   だけで、ハンドルの見た目の位置・タイトルまでの間隔は変わらない。
+   touch-action:none は Android WebView 等でこの領域だけネイティブの
+   スクロール/pull-to-refreshとドラッグが競合しないようにするため。 */
+.sheet__grip {
+  padding: 24px 0 16px;
+  touch-action: none;
+  cursor: grab;
+}
+.sheet__grip:active {
+  cursor: grabbing;
 }
 
 .sheet__handle {
@@ -34,7 +51,7 @@
   height: 4px;
   border-radius: var(--radius-pill);
   background: var(--border-strong);
-  margin: 0 auto 16px;
+  margin: 0 auto;
 }
 
 .sheet__title {
