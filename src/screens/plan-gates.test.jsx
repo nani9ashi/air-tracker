@@ -35,7 +35,7 @@ vi.mock('../components/PaywallSheet.jsx', () => ({
   default: ({ open, source }) => (open ? <div data-testid="paywall" data-source={source} /> : null),
 }))
 
-import { makeDefaultState, PLAN_LIMITS } from '../store/store.js'
+import { makeDefaultState, PLAN_LIMITS, getState, getActiveAirItem, PRESET_INTERVALS } from '../store/store.js'
 import HomeScreen from './HomeScreen.jsx'
 import HistoryScreen from './HistoryScreen.jsx'
 import StatsScreen from './StatsScreen.jsx'
@@ -117,6 +117,28 @@ describe('カスタム間隔チップ', () => {
     await user.click(screen.getByRole('button', { name: 'カスタム間隔' }))
     expect(screen.getByRole('dialog', { name: 'カスタム間隔' })).toBeInTheDocument()
   })
+})
+
+// ------------------------------------------------------------
+// 間隔プリセットチップ（v2.4.1 回帰: PR5で showPremium ステートを削除した際、
+// onSelectPreset に残っていた setShowPremium(false) の呼び出しを消し忘れ、
+// プリセットを押すと setCycle(d) の直前で ReferenceError が発生して間隔が
+// 一切更新できなくなっていた。useStore.js だけがモックなので store.js 本体は
+// 実物——コンポーネントの操作による実ストアの変化は getState() 経由で
+// 観測できる（描画は別系統の fx.state フィクスチャなので DOM の再描画には
+// 依存しない）。
+// ------------------------------------------------------------
+describe('間隔プリセットチップ（7/14/21/28日）', () => {
+  it.each(PRESET_INTERVALS)(
+    '%s日を選ぶと store の intervalDays が更新される',
+    async (d) => {
+      fx.state = seed('free')
+      const user = userEvent.setup()
+      render(<HomeScreen />)
+      await user.click(screen.getByRole('button', { name: `${d}日` }))
+      expect(getActiveAirItem(getState()).intervalDays).toBe(d)
+    },
+  )
 })
 
 // ------------------------------------------------------------

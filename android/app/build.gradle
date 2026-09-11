@@ -15,8 +15,10 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         // versionCode 15 は Step0（RevenueCat/Play課金権限ゲート開放）のため内部テストへ
         // アップロード済み。v2.4.0の公開ビルドは16から（2026-09-08 訂正）。
-        versionCode 16
-        versionName "2.4.0"
+        // 16 はプリセット間隔チップが壊れたまま Play Console へアップロード済みのため、
+        // v2.4.1（間隔プリセットチップのバグ修正）は17から（2026-09-11）。
+        versionCode 17
+        versionName "2.4.1"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

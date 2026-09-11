@@ -899,3 +899,74 @@ AAB サイズ 18,783,851 バイト（約 17.9MB。vc15 の 18,782,505 バイト�
 9. `store.migrate-pairwise.test.js` の入力フィクスチャは意図的に `'pro'`/`'premium'`
    のまま残してある（旧データ互換の検証として有効）。将来 alias を外すなら
    このフィクスチャも一緒に消すこと
+
+
+---
+
+## 16. 追補 — v2.4.1 での対応（2026-09-11）
+
+v2.4.0（vc16）で「空気を入れる間隔が動かせなくなる」バグ報告を受け、単発の
+不具合修正として対応。§15 のような複数PR構成ではなく1件のみ。
+
+### 何が壊れていたか
+
+PR5（`d352c97`）で `src/screens/HomeScreen.jsx` の `showPremium`/`setShowPremium`
+ステート（無料時のインラインヒント用）を `paywallSource`/`setPaywallSource` へ
+置き換えた際、`onCustomClick`（カスタム間隔チップのハンドラ）は正しく書き換え
+られたが、その直前の `onSelectPreset`（7/14/21/28日のプリセットチップの
+ハンドラ）は diff の対象外で触られず、削除済みステートへの参照
+`setShowPremium(false)` が残った。プリセットチップを押すと `setCycle(d)` の
+**前**に `ReferenceError: setShowPremium is not defined` が発生し、間隔が
+一切更新されなかった（カスタム間隔チップ自体は無関係で正常）。アプリに
+ErrorBoundary が無く、イベントハンドラ内の例外はレンダーツリーを巻き込まない
+ため、画面は落ちずボタンが黙って無反応になっていた。
+
+### なぜ888件のテストで検出できなかったか
+
+`plan-gates.test.jsx`（PR5で大幅書き換え）の「カスタム間隔チップ」ブロックは
+カスタム間隔チップのロック/非ロック・PaywallSheet 起動のみを検証しており、
+**プリセットチップ（7/14/21/28日）のクリックは一度も踏んでいなかった**。
+`onSelectPreset` のカバレッジ0件がそのまま検出の穴になった。
+
+### 修正
+
+`src/screens/HomeScreen.jsx` の `onSelectPreset` から死んだ1行を削除。
+他ファイルの変更は無い（store.js / Chip.jsx / Sheet.jsx / PromptSheet.jsx /
+PaywallSheet.jsx / BikeSheet.jsx / HistoryScreen.jsx / StatsScreen.jsx /
+SettingsScreen.jsx はすべて健全と確認済み）。
+
+### 追加した回帰テスト
+
+`plan-gates.test.jsx` に「間隔プリセットチップ（7/14/21/28日）」を新設し、
+`store.js` の実シングルトン（`getState()`/`getActiveAirItem()`。この
+ファイルは `useStore.js` だけをモックし `store.js` 本体は実物）に対して
+プリセットクリック後の `intervalDays` を直接検証する形にした。**修正前に
+このテストを実行し、実際に落ちる（`ReferenceError` で4件中3件が失敗）ことを
+確認してから**1行削除を適用した——本物のバグを再現した回帰テストであることの
+直接的な証明として、通常のミューテーションチェックの代わりに使った。
+
+### 検証方法
+
+`npm test` で 892/892 pass（23 files。888→+4）。`npm run dev` のブラウザで
+7/14/21/28日の全チップとカスタム間隔（10日を入力）を実際にクリックし、
+コンソールエラー無しで間隔が更新されることを確認した。
+
+Android は `gradlew clean bundleRelease` で versionCode 17 / versionName 2.4.1
+の AAB を実ビルドし、マージ後マニフェストで `versionCode="17"` /
+`versionName="2.4.1"` / `com.android.vending.BILLING` を確認（vc16 から権限の
+増減なし）。AAB 展開後 JS で `showPremium`/`setShowPremium` を含む DEV限定
+識別子がすべて0件であることを実測し、修正がビルド成果物にも反映されている
+ことを確認した。署名は `jarが検証されました`。AABサイズ 18,783,843 バイト
+（vc16の18,783,851バイトから-8バイト。1行削除分）。
+
+### 次に残っているもの
+
+§15 からの持ち越し（Step0 STEP5・実機購入確認一式・GoatCounter secret 登録・
+1b-4b・その他）に変わりなし。加えて:
+
+1. **HomeScreen 専用のテストファイルが無い**ことが今回の穴の遠因でもある
+   （`plan-gates.test.jsx` 1ファイルに複数画面のロック挙動が同居しており、
+   ロック絡みでない通常操作＝プリセットチップのような機能が見落とされやすい）。
+   画面単位のテストファイル分割を今後検討する価値がある。
+2. vc16（間隔プリセットチップが壊れた状態）を内部テスト以外の広いトラックに
+   既に配信していないか確認し、必要なら vc17 で速やかに上書きする。
