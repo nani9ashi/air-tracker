@@ -1,0 +1,24 @@
+/* v2.4.3: スクロール時にヘッダー等の内容が物理ステータスバーの矩形の裏を
+   素通りするのを防ぐ、画面最上部固定の遮蔽グラデーション。
+   --safe-top ぶん（システムアイコンが実際に描画される領域）は完全不透明の
+   ハードストップにし、その下の --status-fade-h ぶんだけ不透明→透明へ
+   フェードさせる（アイコンの裏に文字がうっすら透けるのも「衝突」に見える
+   ため、境界をあいまいにしない）。
+   .bottom-nav と同じくビューポート全幅（#root の420px上限には従わない）。
+   position:fixed の containing block は #root ではなく viewport なので、
+   left:0/right:0 だけで自然に全幅になる（#root に transform が無いため）。 */
+.status-fade {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--status-fade-total);
+  background: linear-gradient(
+    to bottom,
+    var(--bg-app) 0%,
+    var(--bg-app) var(--safe-top),
+    transparent 100%
+  );
+  pointer-events: none;
+  z-index: 50;
+}

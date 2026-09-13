@@ -169,6 +169,16 @@
      ⚠ --bottom-nav-h を直接 calc() に入れてはいけない（インセットが抜ける）。 */
   --bottom-nav-total: calc(var(--bottom-nav-h) + var(--safe-bottom));
 
+  /* ステータスバー(edge-to-edge)フェード。スクロールでヘッダー等の内容が
+     物理ステータスバーの矩形（時計・通知アイコン）の裏を素通りしてしまう
+     のを、画面最上部に固定した遮蔽グラデーションで防ぐ
+     （StatusBarFade.jsx、v2.4.3）。
+     --status-fade-h はフェード部分だけの高さ（インセット抜き）。
+     ⚠ --status-fade-h を直接 calc() に入れてはいけない（インセットが抜ける。
+        --bottom-nav-h と同じ理由）。必ず --status-fade-total を使うこと。 */
+  --status-fade-h: 32px;
+  --status-fade-total: calc(var(--status-fade-h) + var(--safe-top));
+
   /* ===== 角丸 ===== */
   --radius-xs: 8px; --radius-sm: 12px; --radius-md: 16px;
   --radius-lg: 22px; --radius-xl: 28px; --radius-pill: 999px; --radius-circle: 50%;
