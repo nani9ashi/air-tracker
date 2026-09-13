@@ -1,13 +1,15 @@
 // ============================================================
-// tokens.contract.test.js — セーフエリアの「規約」を固定する。
+// tokens.contract.test.js — セーフエリア(top/bottom共通)の「規約」を固定する。
 //
 // ⚠ これは描画のテストではない。jsdom は env() もレイアウトも計算しないので、
-//   下タブがシステムナビに被らないことを単体テストで証明する手段は無い
+//   下タブ/ステータスバーフェードが実機で正しく効くことを単体テストで証明する
+//   手段は無い
 //   （実証は実機マトリクス: 3ボタンナビ / ジェスチャーナビ / 古い WebView）。
 //   ここで固定するのは「壊れ方が同じ形で戻ってこないこと」だけ:
 //     1. 下端の余白は --bottom-nav-total を通す（--bottom-nav-h 直参照は禁止）
-//     2. env() の fallback は無単位 0 ではなく 0px（calc() で宣言ごと落ちる）
-//     3. Capacitor が注入する --safe-area-inset-* を読まない
+//     2. 上端のフェードは --status-fade-total を通す（--status-fade-h 直参照は禁止）
+//     3. env() の fallback は無単位 0 ではなく 0px（calc() で宣言ごと落ちる）
+//     4. Capacitor が注入する --safe-area-inset-* を読まない
 // ============================================================
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
@@ -17,10 +19,15 @@ import { dirname, resolve } from 'node:path'
 const SRC = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const read = (p) => readFileSync(resolve(SRC, p), 'utf8')
 
-// --bottom-nav-h を下余白の計算に使っている全ファイル（v2.2.0 で total へ移行済み）。
+// セーフエリア（上端 --safe-top / 下端 --safe-bottom）を消費する全ファイル。
+// 元は「--bottom-nav-h を下余白の計算に使っている全ファイル」(v2.2.0)の
+// 意味だったが、下の2チェック（fallback 0px / Capacitor注入変数不参照）は
+// top/bottom を問わず全セーフエリア消費者に一般化できるため、v2.4.3で
+// StatusBarFade.css（上端専用）もここに合流させた。
 const CONSUMERS = [
   'components/Toast.css',
   'components/BottomNav.css',
+  'components/StatusBarFade.css',
   'screens/HomeScreen.css',
   'screens/HistoryScreen.css',
   'screens/StatsScreen.css',
@@ -29,11 +36,13 @@ const CONSUMERS = [
 ]
 
 describe('セーフエリアの規約', () => {
-  it('tokens.css が --safe-top/--safe-bottom/--bottom-nav-total を定義している', () => {
+  it('tokens.css が --safe-top/--safe-bottom/--bottom-nav-total/--status-fade-total を定義している', () => {
     const css = read('styles/tokens.css')
     expect(css).toContain('--safe-top:')
     expect(css).toContain('--safe-bottom:')
     expect(css).toContain('--bottom-nav-total:')
+    expect(css).toContain('--status-fade-h:')
+    expect(css).toContain('--status-fade-total:')
   })
 
   it('env() の fallback が 0px（無単位 0 は calc() で宣言ごと無効になる）', () => {
@@ -49,6 +58,11 @@ describe('セーフエリアの規約', () => {
   it.each(CONSUMERS)('%s は --bottom-nav-h を直接足していない', (file) => {
     // --bottom-nav-h) + ... は total を経由し損ねているサイン。
     expect(read(file)).not.toMatch(/--bottom-nav-h\)\s*\+/)
+  })
+
+  it.each(CONSUMERS)('%s は --status-fade-h を直接足していない', (file) => {
+    // --status-fade-h) + ... は total を経由し損ねているサイン（--bottom-nav-h と同じ理由）。
+    expect(read(file)).not.toMatch(/--status-fade-h\)\s*\+/)
   })
 
   it('Capacitor 注入の --safe-area-inset-* を読んでいない（二重の下駄になる）', () => {

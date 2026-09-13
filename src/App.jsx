@@ -4,6 +4,7 @@ import HistoryScreen from './screens/HistoryScreen.jsx'
 import StatsScreen from './screens/StatsScreen.jsx'
 import SettingsScreen from './screens/SettingsScreen.jsx'
 import BottomNav from './components/BottomNav.jsx'
+import StatusBarFade from './components/StatusBarFade.jsx'
 import Icon from './components/Icon.jsx'
 import PreviewScreen from './screens/PreviewScreen.jsx'
 import { useStore } from './store/useStore.js'
@@ -71,6 +72,7 @@ export default function App() {
       {tab === 'stats' && <StatsScreen />}
       {tab === 'settings' && <SettingsScreen />}
 
+      <StatusBarFade />
       <BottomNav
         active={tab}
         onChange={setTab}
