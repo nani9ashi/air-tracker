@@ -6,6 +6,8 @@
 
 **無料のPWA版を公開中**: https://nani9ashi.github.io/air-tracker/
 
+**プライバシーポリシー**: https://nani9ashi.github.io/air-tracker/privacy.html
+
 <!-- TODO: スクリーンショット(ホーム/統計)をここに追加 -->
 
 ## 使ってみる
