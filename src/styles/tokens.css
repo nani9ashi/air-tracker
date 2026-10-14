@@ -175,8 +175,16 @@
      （StatusBarFade.jsx、v2.4.3）。
      --status-fade-h はフェード部分だけの高さ（インセット抜き）。
      ⚠ --status-fade-h を直接 calc() に入れてはいけない（インセットが抜ける。
-        --bottom-nav-h と同じ理由）。必ず --status-fade-total を使うこと。 */
-  --status-fade-h: 32px;
+        --bottom-nav-h と同じ理由）。必ず --status-fade-total を使うこと。
+     v2.4.4: 4画面のヘッダーの上余白も --status-fade-total そのもの
+     （＝フェードが終わる位置からヘッダーの中身が始まる）。v2.4.3 では
+     ヘッダーが safe-top+12px から、フェードが safe-top+32px まで続いて
+     いたため、静止時でもタイトル・ロゴの上部 20px がフェードでかすんでいた。
+     長さは画面幅に比例させる（320px→16px / 412px→約20.6px / 480px以上→24px）。
+     表示サイズ設定で CSS 上の画面幅が変わっても、画面に対する余白の比率を
+     ほぼ一定に保つため。文字サイズ設定で文字だけ拡大されても、ヘッダーの
+     中身はフェード終端から下へ伸びるだけなので静止時にかすむことはない。 */
+  --status-fade-h: clamp(16px, 5vw, 24px);
   --status-fade-total: calc(var(--status-fade-h) + var(--safe-top));
 
   /* ===== 角丸 ===== */
