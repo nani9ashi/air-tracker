@@ -7,7 +7,8 @@
 //   （実証は実機マトリクス: 3ボタンナビ / ジェスチャーナビ / 古い WebView）。
 //   ここで固定するのは「壊れ方が同じ形で戻ってこないこと」だけ:
 //     1. 下端の余白は --bottom-nav-total を通す（--bottom-nav-h 直参照は禁止）
-//     2. 上端のフェードは --status-fade-total を通す（--status-fade-h 直参照は禁止）
+//     2. 上端のフェードは --status-fade-total を通す（--status-fade-h 直参照は禁止）。
+//        各画面のヘッダーもフェードの終端（--status-fade-total）から始める
 //     3. env() の fallback は無単位 0 ではなく 0px（calc() で宣言ごと落ちる）
 //     4. Capacitor が注入する --safe-area-inset-* を読まない
 // ============================================================
@@ -63,6 +64,28 @@ describe('セーフエリアの規約', () => {
   it.each(CONSUMERS)('%s は --status-fade-h を直接足していない', (file) => {
     // --status-fade-h) + ... は total を経由し損ねているサイン（--bottom-nav-h と同じ理由）。
     expect(read(file)).not.toMatch(/--status-fade-h\)\s*\+/)
+  })
+
+  // v2.4.4: ヘッダーの上余白がフェード帯より短いと、スクロールしていなくても
+  // タイトル・ロゴの上部がフェードでかすむ（v2.4.3 では safe-top+12px から
+  // 始まるヘッダーに safe-top+32px までのフェードが被り、20px かすんでいた）。
+  // ヘッダーの中身はフェードの終端（--status-fade-total）から始める。
+  it.each([
+    ['screens/HomeScreen.css', 'home__header'],
+    ['screens/HistoryScreen.css', 'history__header'],
+    ['screens/StatsScreen.css', 'stats__header'],
+    ['screens/SettingsScreen.css', 'settings__header'],
+  ])('%s のヘッダーはフェードの終端から始まる', (file, cls) => {
+    const rule = read(file).match(new RegExp(`\\.${cls}\\s*\\{([^}]*)\\}`))
+    expect(rule, `.${cls} の規則が見つからない`).not.toBeNull()
+    // 規則の中で最後に効く padding-top を見る（前にある padding 一括指定を上書きする側）。
+    const tops = [...rule[1].matchAll(/padding-top:\s*([^;]+);/g)].map((m) => m[1].trim())
+    expect(tops.at(-1)).toBe('var(--status-fade-total)')
+  })
+
+  it('--status-fade-h は画面幅に追従する（clamp）', () => {
+    // 表示サイズ設定で CSS 上の画面幅が変わっても、余白の比率をほぼ一定に保つ。
+    expect(read('styles/tokens.css')).toMatch(/--status-fade-h:\s*clamp\(/)
   })
 
   it('Capacitor 注入の --safe-area-inset-* を読んでいない（二重の下駄になる）', () => {

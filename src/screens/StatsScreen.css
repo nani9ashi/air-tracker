@@ -9,8 +9,9 @@
   display: flex;
   align-items: center;
   padding: var(--space-3) 0 var(--space-4);
-  /* ステータスバー(edge-to-edge)食い込み回避 */
-  padding-top: calc(var(--space-3) + var(--safe-top));
+  /* ステータスバー＋フェード帯の終端からヘッダーを始める（v2.4.4。
+     静止時にタイトルがフェードでかすまないように。tokens.css 参照） */
+  padding-top: var(--status-fade-total);
 }
 
 .stats__main {

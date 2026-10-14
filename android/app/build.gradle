@@ -20,8 +20,9 @@ android {
         // v2.4.2（ボトムシートのハンドルを下ドラッグで閉じられるようにする機能追加）は18から。
         // v2.4.3（スクロール中に文字がステータスバーの裏を素通りする不具合を
         // フェードで解消）は19から。
-        versionCode 19
-        versionName "2.4.3"
+        // v2.4.4（ヘッダーのタイトル・ロゴがフェードでかすむ不具合の修正）は20から。
+        versionCode 20
+        versionName "2.4.4"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
