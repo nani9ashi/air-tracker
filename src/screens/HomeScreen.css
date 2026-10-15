@@ -39,14 +39,23 @@
   display: inline-flex;
   align-items: center;
   gap: 2px;
+  min-width: 0;
   font-family: var(--font-jp);
   font-weight: var(--fw-black);
   font-size: 22px;
   letter-spacing: var(--ls-jp);
   color: var(--text-primary);
-  white-space: nowrap;
+}
+/* 自転車名は最大2行で折り返し、「＞」は常に見せる（v2.4.5）。
+   以前は inline-flex の親に省略記号を指定していたため「…」が効かず、
+   長い名前・大きな文字では文字の途中で切れて「＞」も押し出されていた。 */
+.home__bikename-text {
+  min-width: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
 }
 .home__bike-caret {
   color: var(--text-muted);
@@ -90,23 +99,33 @@
   display: grid;
   place-items: center;
 }
+/* リング中央は固定サイズの穴（直径 164px）に入るので、文字の倍率に応じて
+   行の高さを詰める（既定 1.8 → 2.0倍で 1.2。v2.4.5、tokens.css の --tz-t 参照）。
+   数字は .cad-display 側で 1.3倍の頭打ち。2.0倍でも中身の高さ 約150px ≤ 164px。 */
 .home__ring-eyebrow {
   font-family: var(--font-display);
   font-weight: var(--fw-bold);
   font-size: var(--fs-caption);
+  line-height: calc(var(--lh-body) - 0.6 * var(--tz-t, 0));
   letter-spacing: var(--ls-caps);
   text-transform: uppercase;
   color: rgba(255, 255, 255, 0.8);
 }
+/* ⚠ ここに font-size / line-height を書いても効かない。main.jsx が App（画面の CSS）を
+   tokens.css より先に読み込むため、同じ詳細度の .cad-display（56px / 1.25）が後勝ちする
+   （v2.4.4 までの font-size: 66px は一度も効いていなかったので削除した）。
+   変えるなら下の .home__ring-inset .home__ring-num のように詳細度を上げること。 */
 .home__ring-num {
-  font-size: 66px;
-  line-height: 1;
   color: #fff;
+}
+.home__ring-inset .home__ring-num {
+  line-height: calc(var(--lh-tight) - 0.25 * var(--tz-t, 0));
 }
 .home__ring-unit {
   font-family: var(--font-jp);
   font-weight: var(--fw-medium);
   font-size: var(--fs-body);
+  line-height: calc(var(--lh-body) - 0.6 * var(--tz-t, 0));
   color: rgba(255, 255, 255, 0.9);
 }
 /* 超過カウントアップ時は中央の数字を赤系統に（単位「日」は白のまま） */
@@ -156,6 +175,10 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  /* 大きな文字で見出しと補足が折り返しても文字どうしがくっつかないように（v2.4.5） */
+  flex-wrap: wrap;
+  column-gap: var(--space-3);
+  row-gap: var(--space-1);
 }
 .home__cycles-title {
   font-family: var(--font-jp);

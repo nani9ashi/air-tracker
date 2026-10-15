@@ -50,7 +50,7 @@ export default function StatsScreen() {
           <div className="stats__tiles">
             <StatTile value={avg == null ? '—' : avg} unit={avg == null ? '' : '日'} label="平均間隔" tone="accent" />
             <StatTile value={streak} unit="回" label="連続達成" />
-            <StatTile value={trend.label} label="直近傾向" tone={trend.tone} />
+            <StatTile value={trend.label} label="直近傾向" tone={trend.tone} text={trend.label !== '—'} />
           </div>
         </GlassCard>
 

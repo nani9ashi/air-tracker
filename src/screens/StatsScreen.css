@@ -21,15 +21,26 @@
 }
 
 .stats__tiles {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  /* v2.4.5: 3列固定（grid）だと大きな文字で右端のタイルがカードの外へ押し出され、
+     黙って切り取られていた。入りきらなければタイル単位で次の行へ回す
+     （既定の設定では今までどおり等幅の3列）。 */
+  display: flex;
+  flex-wrap: wrap;
   gap: var(--space-3);
+}
+.stats__tiles > * {
+  flex: 1 1 0;
+  max-width: 100%;
 }
 
 .stats__card-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  /* 大きな文字で見出しと補足が折り返しても文字どうしがくっつかないように（v2.4.5） */
+  flex-wrap: wrap;
+  column-gap: var(--space-3);
+  row-gap: var(--space-1);
   margin-bottom: var(--space-3);
 }
 .stats__card-title {

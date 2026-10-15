@@ -3,6 +3,7 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  position: relative;
   cursor: pointer;
   transition: transform var(--dur-fast) var(--ease-out),
     background var(--dur-base) var(--ease-out),
@@ -22,6 +23,14 @@
   width: 36px;
   height: 36px;
   border-radius: var(--radius-sm);
+}
+/* v2.4.5: 小サイズは見えない当たり判定で 44px（--tap-min）を確保（見た目は 36px）。
+   基準は枠線 1px の内側なので -5px で外寸 44px。ホーム右上の2つ並び（間隔 8px）
+   でも当たり判定どうしは接するだけで重ならない。 */
+.icon-btn--sm::after {
+  content: '';
+  position: absolute;
+  inset: -5px;
 }
 .icon-btn--md {
   width: 44px;

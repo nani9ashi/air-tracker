@@ -24,6 +24,10 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  /* 大きな文字で見出しと補足が折り返しても文字どうしがくっつかないように（v2.4.5） */
+  flex-wrap: wrap;
+  column-gap: var(--space-3);
+  row-gap: var(--space-1);
   margin-bottom: 10px;
 }
 .history__card-title {
@@ -101,6 +105,12 @@
   display: grid;
   place-items: center;
   flex-shrink: 0;
+}
+
+/* 日付（「10月10日」）は1かたまりで表示し、入らなければ曜日だけ次の行へ回す（v2.4.5。
+   以前は行タイトルごと「…」で省略され「10月1…」のように別の日付に読めた） */
+.history__date {
+  white-space: nowrap;
 }
 
 .history__wd {

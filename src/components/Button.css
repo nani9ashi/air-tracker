@@ -6,7 +6,11 @@
   font-family: var(--font-jp);
   font-weight: var(--fw-bold);
   letter-spacing: var(--ls-jp);
-  line-height: 1;
+  /* v2.4.5: 文字サイズ設定でラベルが2行に折り返しても行どうしが重ならない
+     行の高さ＋中央揃え。高さは各サイズの min-height（固定 height だと
+     折り返したラベルが上下にはみ出し、ライトテーマでは白文字が背景に溶ける）。 */
+  line-height: 1.25;
+  text-align: center;
   cursor: pointer;
   transition: transform var(--dur-fast) var(--ease-out),
     box-shadow var(--dur-base) var(--ease-out),
@@ -28,20 +32,20 @@
 
 /* ---- sizes ---- */
 .btn--sm {
-  height: var(--control-h-sm);
-  padding: 0 16px;
+  min-height: var(--control-h-sm);
+  padding: var(--space-1) 16px;
   font-size: var(--fs-body-sm);
   border-radius: var(--radius-sm);
 }
 .btn--md {
-  height: var(--control-h-md);
-  padding: 0 24px;
+  min-height: var(--control-h-md);
+  padding: var(--space-2) 24px;
   font-size: var(--fs-body);
   border-radius: var(--radius-md);
 }
 .btn--lg {
-  height: var(--control-h-lg);
-  padding: 0 30px;
+  min-height: var(--control-h-lg);
+  padding: var(--space-2) 30px;
   font-size: var(--fs-title);
   border-radius: var(--radius-md);
 }

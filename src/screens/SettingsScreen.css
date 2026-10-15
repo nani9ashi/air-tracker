@@ -61,6 +61,19 @@
 .settings__row2 {
   display: flex;
   gap: var(--space-2);
+  /* v2.4.5: 入りきらなければボタン単位で次の行へ回す（ラベルを単語の途中で
+     改行しない）。以前は「自転車を追/加」のように1文字ずつ改行されていた。 */
+  flex-wrap: wrap;
+}
+.settings__row2 .settings__btn {
+  flex: 1 1 0;
+  max-width: 100%;
+  word-break: keep-all;
+}
+/* ボタン1つでも行に入りきらない極端な場合（290px×2.0倍など）だけは、
+   ボタンの外へはみ出さずに折り返す */
+.settings__row2 .sheet-opt__label {
+  min-width: 0;
 }
 
 /* sheet-opt を流用しつつ調整 */
@@ -82,6 +95,8 @@
 .settings__themes {
   display: flex;
   gap: var(--space-2);
+  /* v2.4.5: .settings__row2 と同じくボタン単位で次の行へ回す */
+  flex-wrap: wrap;
 }
 .settings__theme-btn {
   flex: 1;
@@ -89,7 +104,10 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 13px;
+  max-width: 100%;
+  /* 左右の余白を詰めて狭い画面でも「ダーク」を1行に（v2.4.5） */
+  padding: 13px var(--space-2);
+  word-break: keep-all;
   border-radius: var(--radius-md);
   background: var(--glass-fill-light);
   border: 1px solid var(--border-subtle);
@@ -119,6 +137,7 @@
 .settings__brand {
   display: inline-flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
   cursor: default;
   -webkit-tap-highlight-color: transparent;

@@ -127,6 +127,20 @@
   --ls-metric: 0.01em;
   --ls-caps: 0.14em;
 
+  /* ===== 文字の倍率（端末の文字サイズ設定、v2.4.5） =====
+     Android の WebView は端末の文字サイズ（最大 2.0倍）を文字の大きさと行の
+     高さにだけ掛ける（px の箱・余白・SVG は大きくならない）。基本は流動的な
+     CSS で吸収し、倍率は尊重する。例外は固定の器に入った巨大な数字だけで、
+     --tz-cap-display 倍で頭打ちにする（Android 14 自身も大きな文字ほど拡大を
+     抑える非線形の拡大をしており、それと同じ考え方）。
+     --tz は lib/textZoom.js が起動時に実測して <html> のインラインに書く。
+     ⚠ --tz-display / --tz-t は下の @supports の中でだけ定義する。min()/clamp()
+        を解釈できない古い WebView で無効値になると、使う側の宣言ごと unset に
+        なってしまうため（var() の fallback は「未定義」のときしか効かない）。
+        使う側は必ず var(--tz-display, 1) / var(--tz-t, 0) と fallback 付きで書く。 */
+  --tz: 1;
+  --tz-cap-display: 1.3;
+
   /* ===== スペーシング（8pxグリッド） ===== */
   --space-0: 0;   --space-1: 4px;  --space-2: 8px;  --space-3: 12px;
   --space-4: 16px; --space-5: 20px; --space-6: 24px; --space-7: 32px;
@@ -274,13 +288,25 @@
   --inset-press: inset 0 2px 6px rgba(16, 40, 36, 0.12);
 }
 
+/* 文字の倍率から導く係数（v2.4.5。:root の --tz の説明参照）。
+   --tz-display: 巨大な数字に掛ける係数。倍率 1.3 以下で 1、2.0 で 0.65
+                 （＝実際の拡大は最大 1.3倍で頭打ち）。
+   --tz-t:       倍率 1.0→2.0 を 0→1 に写した補間用の値（行の高さを詰める等）。 */
+@supports (width: min(1px, 2px)) {
+  :root {
+    --tz-display: min(1, var(--tz-cap-display) / var(--tz));
+    --tz-t: clamp(0, var(--tz) - 1, 1);
+  }
+}
+
 /* ============================================================
    テキストロール ヘルパー（任意。tokensを使うサンプル）
    ============================================================ */
 .cad-display {
   font-family: var(--font-metric);
   font-weight: var(--fw-bold);
-  font-size: var(--fs-display);
+  /* 巨大な数字は文字の倍率を 1.3倍で頭打ち（v2.4.5） */
+  font-size: calc(var(--fs-display) * var(--tz-display, 1));
   line-height: var(--lh-tight);
   letter-spacing: var(--ls-metric);
   font-variant-numeric: tabular-nums;

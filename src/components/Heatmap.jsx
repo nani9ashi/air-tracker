@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { sortedHistory } from '../lib/stats.js'
 import { toDateInputValue, startOfDayLocal, computeStatus } from '../lib/date.js'
+import { getTextZoom } from '../lib/textZoom.js'
 import './Heatmap.css'
 
 // セルの濃淡。'over' / 'soon' はホーム画面の状態（computeStatus）と 1:1 で対応させる。
@@ -64,14 +65,47 @@ export function buildColumns(history, intervalDays, weeks, now = new Date()) {
   return columns
 }
 
+// ---- 月ラベル（v2.4.5） ----
+// ラベルの枠は1マス分（13px）で、文字は右へはみ出して描かれる。通常のラベルは
+// 「その週の日曜日の月が前の列と変わった列」に付くので、月が28日以上ある以上
+// 必ず4列（64px）以上離れ、文字サイズ最大（2.0倍）でも重ならない。
+// 重なり得るのは左端の列のラベルだけ（その週の日曜日が月の最後の1週に入ると、
+// 次の月のラベルが1〜3列先に来る）。そこで左端のラベルは、次のラベルまでに
+// 「文字幅 × 文字の倍率 ＋ すき間」が確保できるときだけ出す。
+// 消えても1〜3列先に次の月のラベルがあるので、左端の週の月は読み取れる。
+export const MONTH_LABEL_MAX_W = 24 // px。最も広い「10月」の実測 23.6px（既定の文字サイズ）
+export const MONTH_LABEL_MIN_GAP = 4 // px。ラベルどうしの最小のすき間
+// px。列の間隔 ＝ Heatmap.css の --cell（13px）＋ --cell-gap（3px）。
+// ⚠ どちらかを変えたらここも直すこと。
+export const COLUMN_PITCH = 16
+
+// 左端のラベルを出すのに必要な「次のラベルまでの列数」。
+// 倍率 0.85〜1.15 → 2列、1.3〜1.8 → 3列、2.0 → 4列。
+export function firstLabelMinColumns(zoom) {
+  return Math.ceil((MONTH_LABEL_MAX_W * zoom + MONTH_LABEL_MIN_GAP) / COLUMN_PITCH)
+}
+
+// 各列のラベル（無ければ ''）。zoom は端末の文字サイズ設定の倍率。
+export function monthLabelsFor(columns, zoom = 1) {
+  const labels = columns.map((col, i) =>
+    i > 0 && col[0].month !== columns[i - 1][0].month ? `${col[0].month + 1}月` : '',
+  )
+  if (columns.length > 0) {
+    const next = labels.findIndex((l, i) => i > 0 && l !== '')
+    if (next === -1 || next >= firstLabelMinColumns(zoom)) {
+      labels[0] = `${columns[0][0].month + 1}月`
+    }
+  }
+  return labels
+}
+
 export default function Heatmap({ history, intervalDays = 14, weeks = 18 }) {
   const columns = useMemo(
     () => buildColumns(history, intervalDays, weeks),
     [history, intervalDays, weeks],
   )
-  const monthLabels = columns.map((col, i) =>
-    i === 0 || col[0].month !== columns[i - 1][0].month ? `${col[0].month + 1}月` : '',
-  )
+  // 倍率は表示時の値でよい（Android は文字サイズを変えるとアプリが再起動する）。
+  const monthLabels = monthLabelsFor(columns, getTextZoom())
   const pumpCount = columns.flat().filter((c) => c.level === 'pump').length
 
   return (
@@ -103,18 +137,25 @@ export default function Heatmap({ history, intervalDays = 14, weeks = 18 }) {
         </div>
       </div>
 
+      {/* 色見本と説明は1つのまとまり（折り返しても別の行に分かれない） */}
       <div className="heatmap__legend" aria-hidden="true">
-        <span className="heatmap__legend-label">少</span>
-        <span className="heatmap__cell heatmap__cell--empty" />
-        <span className="heatmap__cell heatmap__cell--mid" />
-        <span className="heatmap__cell heatmap__cell--fresh" />
-        <span className="heatmap__cell heatmap__cell--pump" />
-        <span className="heatmap__legend-label">多</span>
+        <span className="heatmap__legend-group">
+          <span className="heatmap__legend-label">少</span>
+          <span className="heatmap__cell heatmap__cell--empty" />
+          <span className="heatmap__cell heatmap__cell--mid" />
+          <span className="heatmap__cell heatmap__cell--fresh" />
+          <span className="heatmap__cell heatmap__cell--pump" />
+          <span className="heatmap__legend-label">多</span>
+        </span>
         <span className="heatmap__legend-sep" />
-        <span className="heatmap__cell heatmap__cell--soon" />
-        <span className="heatmap__legend-label">期限間近</span>
-        <span className="heatmap__cell heatmap__cell--over" />
-        <span className="heatmap__legend-label">超過</span>
+        <span className="heatmap__legend-group">
+          <span className="heatmap__cell heatmap__cell--soon" />
+          <span className="heatmap__legend-label">期限間近</span>
+        </span>
+        <span className="heatmap__legend-group">
+          <span className="heatmap__cell heatmap__cell--over" />
+          <span className="heatmap__legend-label">超過</span>
+        </span>
       </div>
     </div>
   )

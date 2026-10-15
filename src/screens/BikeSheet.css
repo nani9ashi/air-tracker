@@ -12,7 +12,8 @@
   align-items: center;
   gap: var(--space-3);
   min-height: var(--control-h-md);
-  padding: 0 var(--space-4);
+  /* 上下にも少し余白（大きな文字で名前が折り返しても枠に詰まらない。v2.4.5） */
+  padding: var(--space-1) var(--space-4);
   border-radius: var(--radius-md);
   background: var(--glass-fill-light);
   border: 1px solid var(--glass-border-soft);
@@ -31,6 +32,9 @@
 }
 .bike-sheet__name {
   flex: 1;
+  /* 空白の無い長い英字の名前でもシートが横スクロールしないよう、どこでも折り返す（v2.4.5） */
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .bike-sheet__check {
   color: var(--text-accent);
@@ -40,6 +44,7 @@
 .bike-sheet__add {
   width: 100%;
   min-height: var(--control-h-md);
+  padding: var(--space-1) var(--space-4);
   display: inline-flex;
   align-items: center;
   justify-content: center;

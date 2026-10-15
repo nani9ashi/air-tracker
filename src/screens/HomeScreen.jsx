@@ -149,7 +149,7 @@ export default function HomeScreen({ onTab }) {
         >
           <span className="home__eyebrow"><QuukiMark size={12} /> QUUKI</span>
           <span className="home__bikename">
-            {bike.name}
+            <span className="home__bikename-text">{bike.name}</span>
             <Icon name="chevron-right" size={18} className="home__bike-caret" />
           </span>
         </button>

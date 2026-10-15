@@ -9,7 +9,15 @@
 // ここで守りたいのは「二重管理を復活させない」ことだけ。
 // ============================================================
 import { describe, it, expect } from 'vitest'
-import { levelForDay, buildColumns } from './Heatmap.jsx'
+import {
+  levelForDay,
+  buildColumns,
+  monthLabelsFor,
+  firstLabelMinColumns,
+  MONTH_LABEL_MAX_W,
+  MONTH_LABEL_MIN_GAP,
+  COLUMN_PITCH,
+} from './Heatmap.jsx'
 import { computeStatus } from '../lib/date.js'
 
 const MS = 86400000
@@ -100,5 +108,102 @@ describe('buildColumns — 記録日のセル', () => {
     const cols = buildColumns([], 14, 4, now)
     const levels = new Set(cols.flat().map((c) => c.level))
     expect([...levels].every((l) => l === 'empty' || l === 'future')).toBe(true)
+  })
+})
+
+// ============================================================
+// 月ラベル（v2.4.5）— 左端のラベルが次の月のラベルと重ならないこと。
+//
+// 以前は「左端の列には無条件でラベルを付ける」ルールだったため、左端の週の
+// 日曜日が月の最後の1週に入る日（全体の約23%）は、既定の文字サイズでも
+// 「5月」「6月」のように隣り合うラベルが重なっていた。文字を大きくすると
+// 2〜3列離れていても重なる。左端のラベルは、次のラベルまでに
+// 「文字幅 × 倍率 ＋ すき間」が確保できるときだけ出す。
+// ============================================================
+describe('firstLabelMinColumns — 左端のラベルを出すのに必要な列数', () => {
+  it.each([
+    [0.85, 2],
+    [1.0, 2],
+    [1.15, 2],
+    [1.3, 3],
+    [1.5, 3],
+    [1.8, 3],
+    [2.0, 4],
+  ])('DT: 倍率 %s → %s列', (zoom, cols) => {
+    expect(firstLabelMinColumns(zoom)).toBe(cols)
+  })
+})
+
+describe('monthLabelsFor — 左端のラベルの出す／出さない', () => {
+  // 各列の日曜日の月（0始まり）だけを持つ最小の列。
+  const cols = (...months) => months.map((m) => [{ month: m }])
+  // 左端が5月、distance 列目から6月になる7列。
+  const withDistance = (distance) => cols(...Array.from({ length: 7 }, (_, i) => (i < distance ? 4 : 5)))
+
+  it.each([
+    [1.0, 1, false],
+    [1.0, 2, true],
+    [1.0, 3, true],
+    [1.0, 4, true],
+    [1.3, 1, false],
+    [1.3, 2, false],
+    [1.3, 3, true],
+    [1.3, 4, true],
+    [2.0, 1, false],
+    [2.0, 2, false],
+    [2.0, 3, false],
+    [2.0, 4, true],
+  ])('DT: 倍率 %s・次のラベルまで %s列 → 左端に出す=%s', (zoom, distance, shown) => {
+    const labels = monthLabelsFor(withDistance(distance), zoom)
+    expect(labels[0]).toBe(shown ? '5月' : '')
+    expect(labels[distance]).toBe('6月') // 次のラベル自体は常に出る
+  })
+
+  it('EP: 次のラベルが無い（期間がひと月に収まる）ときは左端に出す', () => {
+    expect(monthLabelsFor(cols(9, 9, 9), 2.0)).toEqual(['10月', '', ''])
+  })
+
+  it('EP: 列が無ければ空', () => {
+    expect(monthLabelsFor([], 1)).toEqual([])
+  })
+
+  it('ST: 年またぎ（12月→1月）', () => {
+    expect(monthLabelsFor(cols(11, 0, 0, 0, 0), 1)).toEqual(['', '1月', '', '', ''])
+    expect(monthLabelsFor(cols(11, 11, 0, 0, 0), 1)).toEqual(['12月', '', '1月', '', ''])
+  })
+
+  it('ST: 2列目以降は従来どおり（日曜日の月が前の列と変わった列に付く）', () => {
+    expect(monthLabelsFor(cols(4, 4, 4, 4, 5, 5, 5, 5, 6), 1)).toEqual([
+      '5月', '', '', '', '6月', '', '', '', '7月',
+    ])
+  })
+
+  it('倍率を省略すると 1.0 として扱う', () => {
+    expect(monthLabelsFor(withDistance(2))).toEqual(monthLabelsFor(withDistance(2), 1))
+  })
+
+  it('総当たり: 2026〜2027年の全日付 × 5/18/26/53週 × 倍率1.0/2.0 でラベル同士が重ならない', () => {
+    const violations = []
+    const seen = { hidden: 0, shownAt2: 0 }
+    for (let d = new Date(2026, 0, 1); d <= new Date(2027, 11, 31); d.setDate(d.getDate() + 1)) {
+      for (const weeks of [5, 18, 26, 53]) {
+        const columns = buildColumns([], 14, weeks, new Date(d))
+        for (const zoom of [1.0, 2.0]) {
+          const at = monthLabelsFor(columns, zoom)
+            .map((l, i) => (l ? i : -1))
+            .filter((i) => i >= 0)
+          for (let k = 1; k < at.length; k++) {
+            const gap = (at[k] - at[k - 1]) * COLUMN_PITCH - MONTH_LABEL_MAX_W * zoom
+            if (gap < MONTH_LABEL_MIN_GAP) violations.push(`${d.toDateString()} weeks=${weeks} zoom=${zoom} cols ${at[k - 1]}→${at[k]}`)
+          }
+          if (zoom === 1.0 && at[0] !== 0) seen.hidden++
+          if (zoom === 1.0 && at[0] === 0 && at[1] === 2) seen.shownAt2++
+        }
+      }
+    }
+    expect(violations).toEqual([])
+    // 検査が空振りしていないこと（左端を消す日も、2列差で出す日も実際にある）
+    expect(seen.hidden).toBeGreaterThan(0)
+    expect(seen.shownAt2).toBeGreaterThan(0)
   })
 })

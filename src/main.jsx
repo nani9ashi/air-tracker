@@ -2,6 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
 import { initAnalytics, track, EV } from './lib/analytics.js'
+import { initTextZoom } from './lib/textZoom.js'
 // フォント読込はビルドモードで分岐する:
 //  - ネイティブ（capacitor）: SW/CDN が無いためフォントを同梱（fonts-native.js）。
 //  - Web: index.html の Google Fonts CDN + SW runtimeCaching（vite.config.js）で解決。
@@ -10,6 +11,10 @@ import { initAnalytics, track, EV } from './lib/analytics.js'
 if (import.meta.env.MODE === 'capacitor') import('./fonts-native.js')
 import './styles/tokens.css'
 import './styles/global.css'
+
+// 端末の文字サイズ設定の倍率を描画前に測って <html> に --tz を書く
+// （巨大な数字の頭打ち・ヒートマップの月ラベルで使う。lib/textZoom.js 参照）。
+initTextZoom()
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
