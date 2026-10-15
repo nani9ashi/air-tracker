@@ -128,7 +128,7 @@ export default function HistoryScreen() {
                   }
                   title={
                     <>
-                      {row.dateLabel}{' '}
+                      <span className="history__date">{row.dateLabel}</span>{' '}
                       <span className="history__wd">{row.weekday}</span>
                     </>
                   }
@@ -151,7 +151,7 @@ export default function HistoryScreen() {
                   }
                   title={
                     <>
-                      {row.dateLabel}{' '}
+                      <span className="history__date">{row.dateLabel}</span>{' '}
                       <span className="history__wd">{row.weekday}</span>
                     </>
                   }

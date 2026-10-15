@@ -26,6 +26,10 @@ body {
   font-size: var(--fs-body);
   line-height: var(--lh-body);
   letter-spacing: var(--ls-jp);
+  /* 空白の無い長い英字（自転車名など）が画面を横に押し広げないための安全網
+     （v2.4.5）。anywhere にはしない: 横並びのボタンの最小幅まで縮んで
+     1文字ずつ改行されやすくなるため。 */
+  overflow-wrap: break-word;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;

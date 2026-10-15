@@ -22,9 +22,8 @@
   color: var(--text-primary);
   letter-spacing: var(--ls-jp);
   line-height: var(--lh-snug);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  /* v2.4.5: 「…」で省略しない（日付が「10月1…」のように別の日付に読めるため）。
+     狭い画面・大きな文字では折り返す。 */
 }
 
 .list-row__sub {

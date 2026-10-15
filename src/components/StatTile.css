@@ -22,6 +22,9 @@
   font-weight: var(--fw-medium);
   font-size: var(--fs-caption);
   letter-spacing: var(--ls-jp-loose);
+  /* v2.4.5: 「連続達成」などを単語の途中で改行しない（入らなければタイルごと折り返す） */
+  word-break: keep-all;
+  min-width: 0;
 }
 
 .stat-tile__val {
@@ -33,7 +36,8 @@
 .stat-tile__value {
   font-family: var(--font-metric);
   font-weight: var(--fw-bold);
-  font-size: 40px;
+  /* 巨大な数字は文字の倍率を 1.3倍で頭打ち（v2.4.5、tokens.css の --tz 参照） */
+  font-size: calc(40px * var(--tz-display, 1));
   line-height: 1;
   letter-spacing: var(--ls-metric);
   color: var(--text-primary);
@@ -50,6 +54,21 @@
 }
 .stat-tile--energy .stat-tile__value {
   color: var(--ember-400);
+}
+
+/* 数値ではなく語を表示するタイル（直近傾向「順調／やや遅れ」など、v2.4.5）。
+   40px の数字用書体だと既定の文字サイズでも2行・1文字ずつの改行になっていたため、
+   本文用の書体・大きさで1語として描く。 */
+.stat-tile--text .stat-tile__val {
+  flex: 1 0 auto;
+  align-items: center;
+}
+.stat-tile--text .stat-tile__value {
+  font-family: var(--font-jp);
+  font-size: var(--fs-h3);
+  line-height: var(--lh-tight);
+  letter-spacing: var(--ls-jp);
+  word-break: keep-all;
 }
 
 .stat-tile__unit {

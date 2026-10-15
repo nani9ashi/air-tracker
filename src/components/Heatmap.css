@@ -22,12 +22,15 @@
 .heatmap__months {
   display: flex;
   gap: var(--cell-gap);
-  height: var(--fs-micro);
 }
+/* v2.4.5: 行の固定高さ（11px）をやめて行の高さで決める。固定だと文字サイズ
+   設定で拡大した文字が下のマスの裏に隠れていた（1.3倍から）。
+   ⚠ 列の間隔（--cell ＋ --cell-gap）を変えたら Heatmap.jsx の COLUMN_PITCH も直す。 */
 .heatmap__month {
   width: var(--cell);
   font-family: var(--font-display);
   font-size: var(--fs-micro);
+  line-height: 1.2;
   color: var(--text-muted);
   white-space: nowrap;
 }
@@ -75,6 +78,13 @@
   align-items: center;
   gap: 5px;
   flex-wrap: wrap;
+}
+/* 色見本と説明を1つの単位にまとめ、折り返しで別の行に分かれないようにする（v2.4.5） */
+.heatmap__legend-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
 }
 .heatmap__legend-label {
   font-family: var(--font-jp);

@@ -2,8 +2,10 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  height: 40px;
+  /* v2.4.5: 固定 height → min-height（大きな文字でも中身が収まる） */
+  min-height: 40px;
   padding: 0 18px;
+  position: relative;
   border-radius: var(--radius-pill);
   font-family: var(--font-jp);
   font-weight: var(--fw-medium);
@@ -17,6 +19,14 @@
   border: 1px solid var(--border-subtle);
   transition: all var(--dur-base) var(--ease-out);
   -webkit-tap-highlight-color: transparent;
+}
+
+/* 見えない当たり判定で 44px（--tap-min）を確保（見た目は 40px のまま）。
+   基準は枠線 1px の内側なので、上下 -3px で外寸 44px、左右 -1px で外寸どおり。 */
+.chip::after {
+  content: '';
+  position: absolute;
+  inset: -3px -1px;
 }
 
 .chip:hover {

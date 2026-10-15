@@ -80,6 +80,8 @@
   font-size: 10px;
   letter-spacing: var(--ls-jp-loose);
   color: var(--text-muted);
+  /* v2.4.5: ラベルは1行固定（2文字なので文字サイズ最大・最も狭い画面でも枠内に収まる） */
+  white-space: nowrap;
 }
 
 .bottom-nav__btn.is-active .bottom-nav__label {
