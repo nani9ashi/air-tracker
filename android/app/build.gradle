@@ -23,8 +23,9 @@ android {
         // v2.4.4（ヘッダーのタイトル・ロゴがフェードでかすむ不具合の修正）は20から。
         // v2.4.5（文字サイズ・表示サイズ最大での表示崩れ修正）は21から。
         // v2.4.6（R8 を有効化。Play の DEX 最適化しきい値への対応）は22から。
-        versionCode 22
-        versionName "2.4.6"
+        // v2.5.0（課金の異常系の網羅：エラーの分類・購入の復元・更新通知など）は23から。
+        versionCode 23
+        versionName "2.5.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
