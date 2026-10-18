@@ -687,7 +687,9 @@ describe('importJSON — 無効パーティション', () => {
     expect(s.importJSON(input)).toEqual({ ok: true })
     expect(air(s).history).toHaveLength(1)
     expect(air(s).intervalDays).toBe(21)
-    expect(s.getState().settings.plan).toBe('paid')
+    // v2.5.0（§6-7）で期待値を変更: 以前はファイルの plan:'premium' が paid として取り込まれて
+    // いた。読み込みでは plan を変えない（読み込み前の free のまま）。
+    expect(s.getState().settings.plan).toBe('free')
   })
 })
 
