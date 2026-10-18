@@ -457,3 +457,47 @@ describe('§6-5 復元の反映', () => {
     warn.mockRestore()
   })
 })
+
+// ============================================================
+// §6-8（v2.5.1）不正な応答は「不明」— 降格しない側にそろえる（更新通知の ST-L04 と同じ扱い）。
+// ============================================================
+describe('§6-8 不正な応答は「不明」', () => {
+  beforeEach(() => vi.spyOn(console, 'warn').mockImplementation(() => {}))
+  afterEach(() => vi.restoreAllMocks())
+
+  const INVALID = { ok: false, status: 'unknown', reason: 'invalid' }
+
+  it.each([
+    ['ST-Q01a', 'customerInfo なし', {}],
+    ['ST-Q01b', '応答が undefined', undefined],
+    ['ST-Q02', 'entitlements なし', { customerInfo: {} }],
+    ['ST-Q03a', 'active なし', { customerInfo: { entitlements: {} } }],
+    ['ST-Q03b', 'active が null', { customerInfo: { entitlements: { active: null } } }],
+  ])('%s: 照会の応答が不正（%s）→ unknown/invalid', async (_id, _label, response) => {
+    getCustomerInfo.mockResolvedValue(response)
+    const b = await loadBilling()
+    await expect(b.checkEntitlement()).resolves.toEqual(INVALID)
+  })
+
+  it('ST-Q04: 起動時リストア（cached paid）で応答が不正 → setPlan を呼ばない（降格しない）', async () => {
+    plan = 'paid'
+    getCustomerInfo.mockResolvedValue({ customerInfo: {} })
+    const b = await loadBilling()
+    await expect(b.restoreEntitlementOnStartup()).resolves.toEqual(INVALID)
+    expect(setPlan).not.toHaveBeenCalled()
+  })
+
+  it('ST-Q05: 復元の応答が不正 → unknown/invalid、setPlan を呼ばない', async () => {
+    plan = 'paid'
+    restorePurchasesMock.mockResolvedValue({ customerInfo: { entitlements: {} } })
+    const b = await loadBilling()
+    await expect(b.restorePurchases()).resolves.toEqual(INVALID)
+    expect(setPlan).not.toHaveBeenCalled()
+  })
+
+  it('回帰: active が {}（権利なしで確定）→ confirmed/false のまま', async () => {
+    getCustomerInfo.mockResolvedValue({ customerInfo: { entitlements: { active: {} } } })
+    const b = await loadBilling()
+    await expect(b.checkEntitlement()).resolves.toEqual({ ok: true, status: 'confirmed', entitled: false })
+  })
+})
