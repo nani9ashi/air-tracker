@@ -32,9 +32,10 @@
 | `Heatmap.jsx` | DT（`computeStatus` との一致） | `src/components/Heatmap.test.js` | 18 |
 | `billing.js`（エラーの分類・v2.5.0 §6-1） | デシジョンテーブル | `src/lib/billing.errors.dt.test.js` | 23 |
 | `billing.js`（purchase の結果・v2.5.0 §6-2） | デシジョンテーブル | `src/lib/billing.test.js`（DT-P01〜P09） | 9 |
-| `billing.js`（初期化・タイムアウト・競合・更新通知・v2.5.0 §6-3〜6-5） | 状態遷移 + BVA | `src/lib/billing.race.test.js` | 38 |
+| `billing.js`（初期化・タイムアウト・競合・更新通知・v2.5.0 §6-3〜6-5、不正な応答・再試行・v2.5.1 §6-8） | 状態遷移 + BVA | `src/lib/billing.race.test.js` | 50 |
 | `PaywallSheet.jsx`（v2.5.0 §6-6） | 状態遷移 + デシジョンテーブル | `src/components/PaywallSheet.test.jsx` | 28 |
 | `store.js`（読み込みとプラン・v2.5.0 §6-7） | 状態遷移 | `src/store/store.migrate-pairwise.test.js` ほか | 3（＋期待値の変更3） |
+| `Heatmap.jsx`（凡例の向きと表示位置・v2.5.1 §7） | 描画の確認 | `src/components/Heatmap.render.test.jsx` | 4 |
 
 ### 設計方針
 
