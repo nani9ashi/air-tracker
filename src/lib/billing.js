@@ -52,51 +52,116 @@ export const ENTITLEMENT_ID = 'paid'
 // 「Androidアプリからのみ」の案内文を出す。
 export const CAN_PURCHASE = NATIVE || import.meta.env.DEV
 
-// アプリ起動時に一度呼ぶ。APIキー未設定（Step0未完了）や web では no-op。
-export async function initBilling() {
-  if (!NATIVE || !API_KEY) return
+// SDK の照会（価格・権利・復元）の上限（v2.5.0。docs/test-design-istqb.md §6-4）。
+// 初期化（configure）待ちも含めた時間。購入そのもの（purchasePackage）は利用者が
+// Google Play の画面を操作している間なので、上限を設けない。
+export const PRICE_TIMEOUT_MS = 10000
+export const QUERY_TIMEOUT_MS = 10000
+
+const TIMEOUT = Symbol('timeout')
+const UNAVAILABLE = Symbol('unavailable')
+
+// p が ms 以内に確定しなければ TIMEOUT に解決する（p 自体は止められないので、
+// 遅れて届いた結果は捨てる）。タイマーは必ず片付ける。
+function withTimeout(p, ms) {
+  let timer
+  const timeout = new Promise((resolve) => {
+    timer = setTimeout(() => resolve(TIMEOUT), ms)
+  })
+  return Promise.race([p, timeout]).finally(() => clearTimeout(timer))
+}
+
+// ---- 初期化（v2.5.0。§6-3） ----
+// configure は1回だけ行い、その結果（true=準備完了 / false=利用不可）を Promise で持つ。
+// SDK を呼ぶ関数はすべてこれを待つ: configure の完了前に呼ぶと SDK が
+// 「Purchases must be configured…」で拒否するため（起動直後にペイウォールを開くと
+// 価格が取れないままになっていた）。
+// 利用不可 = APIキー未設定（Step0未完了）または configure の失敗。
+let ready = null
+
+function ensureReady() {
+  if (!ready) ready = configureOnce()
+  return ready
+}
+
+async function configureOnce() {
+  if (!API_KEY) return false
   try {
     await Purchases.configure({ apiKey: API_KEY })
+    return true
   } catch (e) {
     console.warn('[billing] configure failed', e)
+    return false
   }
 }
 
-// 現在のエンタイトルメント状態を照会する（起動時リストアの基礎。PR3で使用）。
-// status: 'confirmed'（照会成功） | 'unknown'（オフライン等で判定不能）。
-// 'unknown' のとき呼び出し側は plan を変更してはいけない
-// （オフラインで降格させない、が本リリースの中心的な安全原則）。
-export async function checkEntitlement() {
-  if (!NATIVE) return { ok: true, status: 'unknown', reason: 'web-unsupported' }
+// アプリ起動時に一度呼ぶ。APIキー未設定（Step0未完了）や web では no-op。
+// 2回以上呼んでも configure は1回だけ（冪等）。
+export async function initBilling() {
+  if (!NATIVE || !API_KEY) return
+  await ensureReady()
+}
+
+// 初期化を待ってから call() を実行し、上限 ms で打ち切る。
+// 戻り値は call() の結果、または UNAVAILABLE / TIMEOUT。例外はそのまま投げる。
+function callSdk(call, ms) {
+  return withTimeout(
+    (async () => {
+      if (!(await ensureReady())) return UNAVAILABLE
+      return call()
+    })(),
+    ms,
+  )
+}
+
+// 権利の照会（getCustomerInfo / restorePurchases）の共通部分。
+// status: 'confirmed'（照会成功） | 'unknown'（オフライン・タイムアウト・利用不可で判定不能）。
+async function queryEntitlement(call, label) {
   try {
-    const { customerInfo } = await Purchases.getCustomerInfo()
-    return { ok: true, status: 'confirmed', entitled: !!customerInfo?.entitlements?.active?.[ENTITLEMENT_ID] }
+    const r = await callSdk(call, QUERY_TIMEOUT_MS)
+    if (r === UNAVAILABLE) return { ok: false, status: 'unknown', reason: 'unavailable' }
+    if (r === TIMEOUT) {
+      console.warn(`[billing] ${label} timed out`)
+      return { ok: false, status: 'unknown', reason: 'timeout' }
+    }
+    return { ok: true, status: 'confirmed', entitled: isEntitled(r?.customerInfo) }
   } catch (e) {
-    console.warn('[billing] checkEntitlement failed', e)
+    console.warn(`[billing] ${label} failed`, e)
     return { ok: false, status: 'unknown', reason: 'failed' }
   }
+}
+
+// 現在のエンタイトルメント状態を照会する（起動時リストアの基礎）。
+// 'unknown' のとき呼び出し側は plan を変更してはいけない
+// （オフラインで降格させない、が中心的な安全原則）。
+export async function checkEntitlement() {
+  if (!NATIVE) return { ok: true, status: 'unknown', reason: 'web-unsupported' }
+  return queryEntitlement(() => Purchases.getCustomerInfo(), 'checkEntitlement')
 }
 
 // ユーザー起動の「購入を復元」ボタン用。checkEntitlement と違い、
 // ストアへ明示的に再照会させる（restorePurchases）。
 export async function restorePurchases() {
   if (!NATIVE) return { ok: true, status: 'unknown', reason: 'web-unsupported' }
-  try {
-    const { customerInfo } = await Purchases.restorePurchases()
-    return { ok: true, status: 'confirmed', entitled: !!customerInfo?.entitlements?.active?.[ENTITLEMENT_ID] }
-  } catch (e) {
-    console.warn('[billing] restore failed', e)
-    return { ok: false, status: 'unknown', reason: 'failed' }
-  }
+  return queryEntitlement(() => Purchases.restorePurchases(), 'restore')
 }
 
 // ペイウォールに表示する価格文字列。ハードコードしない（Play側の価格変更に追従）。
-// null は「取得できなかった」——呼び出し側は「読み込み中」等で表示すること。
+// null は「取得できなかった」（失敗・タイムアウト・利用不可）——呼び出し側は
+// 「価格を取得できませんでした」と再読み込みの導線を出す。
 export async function getPriceLabel() {
   if (!NATIVE) return import.meta.env.DEV ? '¥300（開発シミュレーション）' : null
   try {
-    const offerings = await Purchases.getOfferings()
-    return offerings?.current?.availablePackages?.[0]?.product?.priceString ?? null
+    const r = await callSdk(async () => {
+      const offerings = await Purchases.getOfferings()
+      return offerings?.current?.availablePackages?.[0]?.product?.priceString ?? null
+    }, PRICE_TIMEOUT_MS)
+    if (r === UNAVAILABLE) return null
+    if (r === TIMEOUT) {
+      console.warn('[billing] getOfferings timed out')
+      return null
+    }
+    return r
   } catch (e) {
     console.warn('[billing] getOfferings failed', e)
     return null
@@ -127,8 +192,13 @@ export async function purchase() {
 async function purchaseNative() {
   let customerInfo
   try {
-    const offerings = await Purchases.getOfferings()
-    const pkg = offerings?.current?.availablePackages?.[0]
+    // 初期化待ちと商品の取得は上限つき（BVA-T07）。購入そのものは上限なし（BVA-T08）。
+    const pkg = await callSdk(async () => {
+      const offerings = await Purchases.getOfferings()
+      return offerings?.current?.availablePackages?.[0] ?? null
+    }, PRICE_TIMEOUT_MS)
+    if (pkg === UNAVAILABLE) return { ok: false, reason: 'unavailable' }
+    if (pkg === TIMEOUT) return { ok: false, reason: 'timeout' }
     if (!pkg) return { ok: false, reason: 'no-offering' }
     ;({ customerInfo } = await Purchases.purchasePackage({ aPackage: pkg }))
   } catch (e) {
