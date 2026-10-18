@@ -501,3 +501,57 @@ describe('§6-8 不正な応答は「不明」', () => {
     await expect(b.checkEntitlement()).resolves.toEqual({ ok: true, status: 'confirmed', entitled: false })
   })
 })
+
+// ============================================================
+// §6-8（v2.5.1）初期化（configure）の失敗後の再試行。
+// ============================================================
+describe('§6-8 初期化の再試行', () => {
+  beforeEach(() => vi.spyOn(console, 'warn').mockImplementation(() => {}))
+  afterEach(() => vi.restoreAllMocks())
+
+  it('ST-I10: 1回目の configure が失敗 → 価格は null。次の呼び出しで再試行して成功 → 価格を返す', async () => {
+    configure.mockRejectedValueOnce(new Error('configure failed'))
+    const b = await loadBilling()
+    await expect(b.getPriceLabel()).resolves.toBeNull()
+    await expect(b.getPriceLabel()).resolves.toBe('¥300')
+    expect(configure).toHaveBeenCalledTimes(2)
+  })
+
+  it('ST-I11: 失敗のあと、同時に価格と照会を呼ぶ → configure は1回にまとまる', async () => {
+    configure.mockRejectedValueOnce(new Error('configure failed'))
+    const b = await loadBilling()
+    await b.initBilling()
+    const retry = deferred()
+    configure.mockReturnValueOnce(retry.promise)
+    const price = b.getPriceLabel()
+    const check = b.checkEntitlement()
+    await flush()
+    expect(configure).toHaveBeenCalledTimes(2)
+    retry.resolve()
+    await expect(price).resolves.toBe('¥300')
+    await expect(check).resolves.toEqual({ ok: true, status: 'confirmed', entitled: true })
+    expect(configure).toHaveBeenCalledTimes(2)
+  })
+
+  it('ST-I12: APIキー未設定では、何度呼んでも configure を呼ばない', async () => {
+    vi.stubEnv('VITE_REVENUECAT_API_KEY', '')
+    const b = await loadBilling()
+    await b.initBilling()
+    await b.getPriceLabel()
+    await b.getPriceLabel()
+    await b.checkEntitlement()
+    await b.purchase()
+    expect(configure).not.toHaveBeenCalled()
+  })
+
+  it('ST-I13: 失敗 → 再試行で成功 → さらに呼び出し: 更新通知の登録は1回、configure も増えない', async () => {
+    configure.mockRejectedValueOnce(new Error('configure failed'))
+    const b = await loadBilling()
+    await b.initBilling()
+    await b.getPriceLabel()
+    await b.getPriceLabel()
+    await b.checkEntitlement()
+    expect(configure).toHaveBeenCalledTimes(2)
+    expect(addCustomerInfoUpdateListener).toHaveBeenCalledTimes(1)
+  })
+})
