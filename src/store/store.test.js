@@ -189,10 +189,13 @@ describe('importJSON / exportJSON', () => {
     expect(s.importJSON(snapshot)).toEqual({ ok: true })
     expect(s.getState()).toEqual(before)
   })
-  it('v2(isPremium:true) の import → plan paid ＋ isPremium 無し', async () => {
+  it('ST-IMP03: v2(isPremium:true) の import → plan は読み込み前のまま（free）＋ isPremium 無し', async () => {
+    // v2.5.0（§6-7）で期待値を変更: 以前はファイルの isPremium:true から plan=paid に
+    // なっていたが、課金状態の正は RevenueCat なので、読み込みでは plan を変えない。
+    // isPremium → plan の変換そのものは migrate のテスト（store.migrate-pairwise）で固定している。
     const s = await freshStore()
     expect(s.importJSON(JSON.stringify(v2({ isPremium: true })))).toEqual({ ok: true })
-    expect(s.getState().settings.plan).toBe('paid')
+    expect(s.getState().settings.plan).toBe('free')
     expect('isPremium' in s.getState().settings).toBe(false)
   })
   it('不正 JSON / 非対応形式はエラー', async () => {

@@ -11,7 +11,9 @@ export const EV = {
   PAYWALL: 'paywall_view', // ロック機能に触れた（source 付き）
   PWA_INSTALL: 'pwa_install', // ホーム画面に追加された
   PWA_PROMPT: 'pwa_install_prompt', // インストール導線が提示された
-  PURCHASE: 'purchase', // 1b で配線（名称のみ予約）
+  // 購入の結果（source）: started / success / cancelled / failed / pending / restored
+  // （PaywallSheet。pending と restored は v2.5.0 で追加）
+  PURCHASE: 'purchase',
 }
 
 const CODE = import.meta.env.VITE_GOATCOUNTER_CODE

@@ -52,51 +52,126 @@ export const ENTITLEMENT_ID = 'paid'
 // 「Androidアプリからのみ」の案内文を出す。
 export const CAN_PURCHASE = NATIVE || import.meta.env.DEV
 
-// アプリ起動時に一度呼ぶ。APIキー未設定（Step0未完了）や web では no-op。
-export async function initBilling() {
-  if (!NATIVE || !API_KEY) return
+// SDK の照会（価格・権利・復元）の上限（v2.5.0。docs/test-design-istqb.md §6-4）。
+// 初期化（configure）待ちも含めた時間。購入そのもの（purchasePackage）は利用者が
+// Google Play の画面を操作している間なので、上限を設けない。
+export const PRICE_TIMEOUT_MS = 10000
+export const QUERY_TIMEOUT_MS = 10000
+
+const TIMEOUT = Symbol('timeout')
+const UNAVAILABLE = Symbol('unavailable')
+
+// p が ms 以内に確定しなければ TIMEOUT に解決する（p 自体は止められないので、
+// 遅れて届いた結果は捨てる）。タイマーは必ず片付ける。
+function withTimeout(p, ms) {
+  let timer
+  const timeout = new Promise((resolve) => {
+    timer = setTimeout(() => resolve(TIMEOUT), ms)
+  })
+  return Promise.race([p, timeout]).finally(() => clearTimeout(timer))
+}
+
+// ---- 初期化（v2.5.0。§6-3） ----
+// configure は1回だけ行い、その結果（true=準備完了 / false=利用不可）を Promise で持つ。
+// SDK を呼ぶ関数はすべてこれを待つ: configure の完了前に呼ぶと SDK が
+// 「Purchases must be configured…」で拒否するため（起動直後にペイウォールを開くと
+// 価格が取れないままになっていた）。
+// 利用不可 = APIキー未設定（Step0未完了）または configure の失敗。
+let ready = null
+
+function ensureReady() {
+  if (!ready) ready = configureOnce()
+  return ready
+}
+
+async function configureOnce() {
+  if (!API_KEY) return false
   try {
     await Purchases.configure({ apiKey: API_KEY })
   } catch (e) {
     console.warn('[billing] configure failed', e)
+    return false
+  }
+  // SDK からの更新通知（§6-5 ST-L01〜L05）。保留中の支払いの完了や返金を、次の起動を
+  // 待たずに反映する。登録に失敗しても課金そのものは使えるので、起動は止めない。
+  try {
+    await Purchases.addCustomerInfoUpdateListener(onCustomerInfoUpdated)
+  } catch (e) {
+    console.warn('[billing] addCustomerInfoUpdateListener failed', e)
+  }
+  return true
+}
+
+// アプリ起動時に一度呼ぶ。APIキー未設定（Step0未完了）や web では no-op。
+// 2回以上呼んでも configure は1回だけ（冪等）。
+export async function initBilling() {
+  if (!NATIVE || !API_KEY) return
+  await ensureReady()
+}
+
+// 初期化を待ってから call() を実行し、上限 ms で打ち切る。
+// 戻り値は call() の結果、または UNAVAILABLE / TIMEOUT。例外はそのまま投げる。
+function callSdk(call, ms) {
+  return withTimeout(
+    (async () => {
+      if (!(await ensureReady())) return UNAVAILABLE
+      return call()
+    })(),
+    ms,
+  )
+}
+
+// 権利の照会（getCustomerInfo / restorePurchases）の共通部分。
+// status: 'confirmed'（照会成功） | 'unknown'（オフライン・タイムアウト・利用不可で判定不能）。
+async function queryEntitlement(call, label) {
+  try {
+    const r = await callSdk(call, QUERY_TIMEOUT_MS)
+    if (r === UNAVAILABLE) return { ok: false, status: 'unknown', reason: 'unavailable' }
+    if (r === TIMEOUT) {
+      console.warn(`[billing] ${label} timed out`)
+      return { ok: false, status: 'unknown', reason: 'timeout' }
+    }
+    return { ok: true, status: 'confirmed', entitled: isEntitled(r?.customerInfo) }
+  } catch (e) {
+    console.warn(`[billing] ${label} failed`, e)
+    return { ok: false, status: 'unknown', reason: 'failed' }
   }
 }
 
-// 現在のエンタイトルメント状態を照会する（起動時リストアの基礎。PR3で使用）。
-// status: 'confirmed'（照会成功） | 'unknown'（オフライン等で判定不能）。
+// 現在のエンタイトルメント状態を照会する（起動時リストアの基礎）。
 // 'unknown' のとき呼び出し側は plan を変更してはいけない
-// （オフラインで降格させない、が本リリースの中心的な安全原則）。
+// （オフラインで降格させない、が中心的な安全原則）。
 export async function checkEntitlement() {
   if (!NATIVE) return { ok: true, status: 'unknown', reason: 'web-unsupported' }
-  try {
-    const { customerInfo } = await Purchases.getCustomerInfo()
-    return { ok: true, status: 'confirmed', entitled: !!customerInfo?.entitlements?.active?.[ENTITLEMENT_ID] }
-  } catch (e) {
-    console.warn('[billing] checkEntitlement failed', e)
-    return { ok: false, status: 'unknown', reason: 'failed' }
-  }
+  return queryEntitlement(() => Purchases.getCustomerInfo(), 'checkEntitlement')
 }
 
 // ユーザー起動の「購入を復元」ボタン用。checkEntitlement と違い、
 // ストアへ明示的に再照会させる（restorePurchases）。
+// 確定した結果は反映する（権利なしで確定したら free へ。§6-5 ST-S01〜S03）。
 export async function restorePurchases() {
   if (!NATIVE) return { ok: true, status: 'unknown', reason: 'web-unsupported' }
-  try {
-    const { customerInfo } = await Purchases.restorePurchases()
-    return { ok: true, status: 'confirmed', entitled: !!customerInfo?.entitlements?.active?.[ENTITLEMENT_ID] }
-  } catch (e) {
-    console.warn('[billing] restore failed', e)
-    return { ok: false, status: 'unknown', reason: 'failed' }
-  }
+  const result = await queryEntitlement(() => Purchases.restorePurchases(), 'restore')
+  applyEntitlement(result)
+  return result
 }
 
 // ペイウォールに表示する価格文字列。ハードコードしない（Play側の価格変更に追従）。
-// null は「取得できなかった」——呼び出し側は「読み込み中」等で表示すること。
+// null は「取得できなかった」（失敗・タイムアウト・利用不可）——呼び出し側は
+// 「価格を取得できませんでした」と再読み込みの導線を出す。
 export async function getPriceLabel() {
   if (!NATIVE) return import.meta.env.DEV ? '¥300（開発シミュレーション）' : null
   try {
-    const offerings = await Purchases.getOfferings()
-    return offerings?.current?.availablePackages?.[0]?.product?.priceString ?? null
+    const r = await callSdk(async () => {
+      const offerings = await Purchases.getOfferings()
+      return offerings?.current?.availablePackages?.[0]?.product?.priceString ?? null
+    }, PRICE_TIMEOUT_MS)
+    if (r === UNAVAILABLE) return null
+    if (r === TIMEOUT) {
+      console.warn('[billing] getOfferings timed out')
+      return null
+    }
+    return r
   } catch (e) {
     console.warn('[billing] getOfferings failed', e)
     return null
@@ -104,22 +179,65 @@ export async function getPriceLabel() {
 }
 
 // 購入を実行する。成功時は setPlan('paid') までこの関数の責務として行う
-// （呼び出し側＝将来のペイウォールUIは結果の表示だけに専念できる）。
+// （呼び出し側＝ペイウォールUIは結果の表示だけに専念できる）。
+// 失敗は reason で区別する（docs/test-design-istqb.md §6-2）:
+//   pending（支払い保留）/ already-owned（購入済みで復元もできない）/
+//   not-entitled（支払い後も権利が付かない）/ in-progress（購入の途中）/
+//   no-offering / それ以外は classifyPurchaseError の分類どおり。
+let purchasing = false
+
 export async function purchase() {
   if (!NATIVE) return import.meta.env.DEV ? devSimulatedPurchase() : { ok: false, reason: 'native-only' }
+  // 二重購入ガード（DT-P08）。画面側でもボタンを無効化しているが、別の画面から
+  // 同時に呼ばれても SDK に購入を重ねて投げない。
+  if (purchasing) return { ok: false, reason: 'in-progress' }
+  purchasing = true
   try {
-    const offerings = await Purchases.getOfferings()
-    const pkg = offerings?.current?.availablePackages?.[0]
-    if (!pkg) return { ok: false, reason: 'no-offering' }
-    const { customerInfo } = await Purchases.purchasePackage({ aPackage: pkg })
-    const entitled = !!customerInfo?.entitlements?.active?.[ENTITLEMENT_ID]
-    if (entitled) setPlan('paid')
-    return entitled ? { ok: true } : { ok: false, reason: 'not-entitled' }
-  } catch (e) {
-    if (isUserCancellation(e)) return { ok: false, reason: 'cancelled' }
-    console.warn('[billing] purchase failed', e)
-    return { ok: false, reason: 'failed' }
+    return await purchaseNative()
+  } finally {
+    purchasing = false
   }
+}
+
+async function purchaseNative() {
+  let customerInfo
+  try {
+    // 初期化待ちと商品の取得は上限つき（BVA-T07）。購入そのものは上限なし（BVA-T08）。
+    const pkg = await callSdk(async () => {
+      const offerings = await Purchases.getOfferings()
+      return offerings?.current?.availablePackages?.[0] ?? null
+    }, PRICE_TIMEOUT_MS)
+    if (pkg === UNAVAILABLE) return { ok: false, reason: 'unavailable' }
+    if (pkg === TIMEOUT) return { ok: false, reason: 'timeout' }
+    if (!pkg) return { ok: false, reason: 'no-offering' }
+    ;({ customerInfo } = await Purchases.purchasePackage({ aPackage: pkg }))
+  } catch (e) {
+    const reason = classifyPurchaseError(e)
+    // 購入済み（再インストール後にオフラインで起動した等）→ 復元して有効にする（DT-P02〜P04）。
+    if (reason === 'already-owned') return recoverAlreadyOwned()
+    // 自分でやめた操作と支払い保留は「失敗」ではないので warn しない。
+    if (reason !== 'cancelled' && reason !== 'pending') console.warn('[billing] purchase failed', e)
+    return { ok: false, reason }
+  }
+  if (isEntitled(customerInfo)) {
+    applyEntitlement({ ok: true, status: 'confirmed', entitled: true })
+    return { ok: true }
+  }
+  // 支払いは済んだのに権利が付いていない（反映の遅れ等）→ 1回だけ再照会する（DT-P05/P06）。
+  const since = epoch
+  const recheck = await checkEntitlement()
+  if (recheck.status === 'confirmed' && recheck.entitled) {
+    applyEntitlement(recheck, since)
+    return { ok: true }
+  }
+  return { ok: false, reason: 'not-entitled' }
+}
+
+// 購入済み（code 6）→ 復元して有効にする。復元の結果は restorePurchases が反映する。
+async function recoverAlreadyOwned() {
+  const restored = await restorePurchases()
+  if (restored.status === 'confirmed' && restored.entitled) return { ok: true, restored: true }
+  return { ok: false, reason: 'already-owned' }
 }
 
 // ⚠ 開発限定: RevenueCat未設定（Step0未完了）でもペイウォールUIの購入フローを
@@ -148,18 +266,76 @@ export function reconcilePlan(cachedPlan, restoreResult) {
   return next === cachedPlan ? null : next
 }
 
-// アプリ起動時に一度呼ぶ（initBilling の後）。現在のキャッシュ値と実際の
-// エンタイトルメントを照会し、確定した差分だけ setPlan で反映する。
+// アプリ起動時に一度呼ぶ（initBilling の後）。実際のエンタイトルメントを照会し、
+// 確定した差分だけ反映する。照会の途中で購入・復元・更新通知により権利が確定して
+// いたら、この照会の結果は古いので捨てる（§6-5 ST-R01〜R04）。
 export async function restoreEntitlementOnStartup() {
-  const cached = getState().settings.plan
+  const since = epoch
   const result = await checkEntitlement()
-  const next = reconcilePlan(cached, result)
-  if (next) setPlan(next)
+  applyEntitlement(result, since)
   return result
 }
 
-// ユーザーが購入ダイアログを自分で閉じた/キャンセルしたことを、他の失敗と区別する
-// （backup.js の isCancellation と同じ原則：閉じただけの操作にエラー表示しない）。
-function isUserCancellation(e) {
-  return /cancel/i.test(String(e?.message || e?.code || e))
+// ---- 権利の反映（v2.5.0。§6-5） ----
+// 反映の経路は4つ（起動時の照会・購入・復元・SDK からの更新通知）で、すべてここを通す。
+// 結果が届いた時点の plan と比べて、確定した差分だけ setPlan する。
+// epoch は「確定した権利を反映した回数」。照会は開始時点の epoch（since）を持ち、
+// そのあとに別の経路で反映されていたら古い結果として捨てる。
+// （v2.4 は照会の開始時点の plan と比べていたため、1回の割り込みなら偶然安全だったが、
+//   反映を一本化して届いた時点の plan と比べる以上、この番号が無いと降格が起きる。）
+// 購入・復元・更新通知は、その時点で最新の結果なので since を付けない。
+let epoch = 0
+
+function applyEntitlement(result, since) {
+  if (result?.status !== 'confirmed') return null // 不明のまま＝何もしない（降格しない）
+  if (since !== undefined && since !== epoch) return null // 古い照会結果
+  epoch += 1
+  const next = reconcilePlan(getState().settings.plan, result)
+  if (next) setPlan(next)
+  return next
+}
+
+// SDK からの更新通知。中身が不正（entitlements.active が無い）なら何もしない（ST-L04）。
+function onCustomerInfoUpdated(customerInfo) {
+  const active = customerInfo?.entitlements?.active
+  if (!active || typeof active !== 'object') return
+  applyEntitlement({ ok: true, status: 'confirmed', entitled: !!active[ENTITLEMENT_ID] })
+}
+
+const isEntitled = (customerInfo) => !!customerInfo?.entitlements?.active?.[ENTITLEMENT_ID]
+
+// ============================================================
+// SDK のエラー → reason の分類（v2.5.0。docs/test-design-istqb.md §6-1）。
+// ============================================================
+
+// SDK のエラーコード（purchases-typescript-internal の PURCHASES_ERROR_CODE）→ reason。
+// ここに無いコード（0 不明・2 ストアの問題・23 設定エラー等）は 'failed'。
+const ERROR_REASONS = {
+  1: 'cancelled', // PURCHASE_CANCELLED_ERROR
+  3: 'not-allowed', // PURCHASE_NOT_ALLOWED_ERROR（課金できない端末・アカウント）
+  5: 'unavailable', // PRODUCT_NOT_AVAILABLE_FOR_PURCHASE_ERROR
+  6: 'already-owned', // PRODUCT_ALREADY_PURCHASED_ERROR
+  10: 'network', // NETWORK_ERROR
+  15: 'in-progress', // OPERATION_ALREADY_IN_PROGRESS_ERROR
+  20: 'pending', // PAYMENT_PENDING_ERROR（コンビニ払い等）
+  35: 'network', // OFFLINE_CONNECTION_ERROR
+}
+
+// Capacitor 経由の SDK エラーは { code: '20', message, data } の形で届く。
+// 優先順位: ① SDK の userCancelled フラグ → ② code → ③ code が無いときだけ文言。
+// 🔒 code があるときは文言を見ない（DT-E16）。失敗をキャンセルと取り違えると
+//   何も表示されず、利用者が状況を知れないため（逆の取り違えは文言が出るだけで済む）。
+// configure 前の呼び出しは code なしの "Purchases must be configured…" で拒否される。
+export function classifyPurchaseError(e) {
+  if (e?.userCancelled === true || e?.data?.userCancelled === true) return 'cancelled'
+  const code = e?.code
+  if (code !== undefined && code !== null && String(code) !== '') {
+    return ERROR_REASONS[String(code)] ?? 'failed'
+  }
+  const message = String(e?.message ?? e ?? '')
+  if (/must be configured/i.test(message)) return 'not-ready'
+  // v2.4 までの文言による判定（backup.js の isCancellation と同じ原則：閉じただけの操作に
+  // エラー表示しない）。code の無いエラーに対してだけ使う。
+  if (/cancel/i.test(message)) return 'cancelled'
+  return 'failed'
 }

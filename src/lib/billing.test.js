@@ -15,6 +15,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 const {
   nativeFlag,
   configure,
+  addCustomerInfoUpdateListener,
   getCustomerInfo,
   restorePurchasesMock,
   getOfferings,
@@ -24,6 +25,7 @@ const {
 } = vi.hoisted(() => ({
   nativeFlag: { value: true },
   configure: vi.fn(),
+  addCustomerInfoUpdateListener: vi.fn(),
   getCustomerInfo: vi.fn(),
   restorePurchasesMock: vi.fn(),
   getOfferings: vi.fn(),
@@ -36,6 +38,7 @@ vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => nativeF
 vi.mock('@revenuecat/purchases-capacitor', () => ({
   Purchases: {
     configure,
+    addCustomerInfoUpdateListener,
     getCustomerInfo,
     restorePurchases: restorePurchasesMock,
     getOfferings,
@@ -61,8 +64,12 @@ beforeEach(() => {
   vi.clearAllMocks()
   vi.unstubAllEnvs()
   vi.useRealTimers()
+  // v2.5.0: SDK の呼び出しは初期化（APIキー必須）を待つようになったため、周囲の
+  // .env.local に頼らず APIキーを明示する（未設定のテストは個別に '' を入れる）。
+  vi.stubEnv('VITE_REVENUECAT_API_KEY', 'goog_unit')
   nativeFlag.value = true
   configure.mockResolvedValue(undefined)
+  addCustomerInfoUpdateListener.mockResolvedValue('listener-1')
   getCustomerInfo.mockResolvedValue(entitled())
   restorePurchasesMock.mockResolvedValue(entitled())
   getOfferings.mockResolvedValue(withOffering())
@@ -205,6 +212,9 @@ describe('purchase — native', () => {
 
   it('purchasePackage は成功したが entitled にならない → not-entitled、setPlanは呼ばない', async () => {
     purchasePackage.mockResolvedValue(notEntitled())
+    // v2.5.0（DT-P06）: 権利が付かなかったときは1回だけ再照会するようになった。
+    // このテストの意味（本当に権利が無い）を保つため、再照会でも権利なしを前提にする。
+    getCustomerInfo.mockResolvedValue(notEntitled())
     const { purchase } = await loadBilling()
     await expect(purchase()).resolves.toEqual({ ok: false, reason: 'not-entitled' })
     expect(setPlan).not.toHaveBeenCalled()
@@ -231,6 +241,100 @@ describe('purchase — native', () => {
     await expect(purchase()).resolves.toEqual({ ok: false, reason: 'failed' })
     expect(warn).toHaveBeenCalled()
     warn.mockRestore()
+  })
+})
+
+// ============================================================
+// v2.5.0 §6-2 purchase() の結果のデシジョンテーブル（DT-P01〜P09）。
+// SDK のエラーは Capacitor 経由で { code: '20', message, data } の形で届く。
+// ============================================================
+const rcError = (code, message = `rc error ${code}`) => Object.assign(new Error(message), { code })
+const deferred = () => {
+  let resolve
+  const promise = new Promise((r) => (resolve = r))
+  return { promise, resolve }
+}
+
+describe('purchase — 異常系のデシジョンテーブル（§6-2）', () => {
+  it('DT-P01: 支払い保留（code 20）→ pending、setPlan は呼ばない', async () => {
+    purchasePackage.mockRejectedValueOnce(rcError('20', 'The payment is pending.'))
+    const { purchase } = await loadBilling()
+    await expect(purchase()).resolves.toEqual({ ok: false, reason: 'pending' })
+    expect(setPlan).not.toHaveBeenCalled()
+  })
+
+  it('DT-P02: 購入済み（code 6）→ 復元で権利あり → ok/restored、setPlan(paid)', async () => {
+    purchasePackage.mockRejectedValueOnce(rcError('6', 'This product is already active for the user.'))
+    restorePurchasesMock.mockResolvedValue(entitled())
+    const { purchase } = await loadBilling()
+    await expect(purchase()).resolves.toEqual({ ok: true, restored: true })
+    expect(restorePurchasesMock).toHaveBeenCalledOnce()
+    expect(setPlan).toHaveBeenCalledWith('paid')
+  })
+
+  it('DT-P03: 購入済み（code 6）→ 復元で権利なし → already-owned', async () => {
+    purchasePackage.mockRejectedValueOnce(rcError('6'))
+    restorePurchasesMock.mockResolvedValue(notEntitled())
+    const { purchase } = await loadBilling()
+    await expect(purchase()).resolves.toEqual({ ok: false, reason: 'already-owned' })
+    expect(setPlan).not.toHaveBeenCalledWith('paid')
+  })
+
+  it('DT-P04: 購入済み（code 6）→ 復元が失敗 → already-owned、setPlan は呼ばない', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    purchasePackage.mockRejectedValueOnce(rcError('6'))
+    restorePurchasesMock.mockRejectedValueOnce(new Error('network'))
+    const { purchase } = await loadBilling()
+    await expect(purchase()).resolves.toEqual({ ok: false, reason: 'already-owned' })
+    expect(setPlan).not.toHaveBeenCalled()
+    warn.mockRestore()
+  })
+
+  it('DT-P05: 購入成功だが権利なし → 再照会で権利あり → ok、setPlan(paid)', async () => {
+    purchasePackage.mockResolvedValue(notEntitled())
+    getCustomerInfo.mockResolvedValue(entitled())
+    const { purchase } = await loadBilling()
+    await expect(purchase()).resolves.toEqual({ ok: true })
+    expect(getCustomerInfo).toHaveBeenCalled()
+    expect(setPlan).toHaveBeenCalledWith('paid')
+  })
+
+  it('DT-P06: 購入成功だが権利なし → 再照会でも権利なし → not-entitled', async () => {
+    purchasePackage.mockResolvedValue(notEntitled())
+    getCustomerInfo.mockResolvedValue(notEntitled())
+    const { purchase } = await loadBilling()
+    await expect(purchase()).resolves.toEqual({ ok: false, reason: 'not-entitled' })
+    expect(getCustomerInfo).toHaveBeenCalled()
+    expect(setPlan).not.toHaveBeenCalledWith('paid')
+  })
+
+  it('DT-P07: 通信エラー（code 10）→ network', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    purchasePackage.mockRejectedValueOnce(rcError('10', 'Error performing request.'))
+    const { purchase } = await loadBilling()
+    await expect(purchase()).resolves.toEqual({ ok: false, reason: 'network' })
+    expect(setPlan).not.toHaveBeenCalled()
+    warn.mockRestore()
+  })
+
+  it('DT-P08: 購入の途中でもう一度 purchase() → 2回目は SDK を呼ばず in-progress', async () => {
+    const pending = deferred()
+    purchasePackage.mockReturnValueOnce(pending.promise)
+    const { purchase } = await loadBilling()
+    const first = purchase()
+    await vi.waitFor(() => expect(purchasePackage).toHaveBeenCalledTimes(1))
+    await expect(purchase()).resolves.toEqual({ ok: false, reason: 'in-progress' })
+    expect(purchasePackage).toHaveBeenCalledTimes(1)
+    pending.resolve(entitled())
+    await expect(first).resolves.toEqual({ ok: true })
+  })
+
+  it('DT-P09: 購入が終わったあとは再び購入できる（ガードが解除される）', async () => {
+    purchasePackage.mockRejectedValueOnce(rcError('1', 'Purchase was cancelled.'))
+    const { purchase } = await loadBilling()
+    await expect(purchase()).resolves.toEqual({ ok: false, reason: 'cancelled' })
+    await expect(purchase()).resolves.toEqual({ ok: true })
+    expect(purchasePackage).toHaveBeenCalledTimes(2)
   })
 })
 

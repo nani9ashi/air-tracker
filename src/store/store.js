@@ -42,7 +42,7 @@ export function getLimits(s = state) {
 }
 
 // アプリ表示バージョン（設定フッター等で使用）。
-export const APP_VERSION = '2.4.6'
+export const APP_VERSION = '2.5.0'
 
 // 履歴エントリ用の安定 ID。
 let __idSeq = 0
@@ -434,7 +434,12 @@ export function importJSON(text) {
     return { ok: false, error: 'このファイルには復元できる記録がありません' }
   }
   try {
-    commit(migrate(raw))
+    const next = migrate(raw)
+    // v2.5.0: plan はファイルの値で上書きしない（課金状態の正は RevenueCat、plan は表示用の
+    // キャッシュ）。購入前に作った古いバックアップを読み込むと、支払い済みなのにその場で
+    // 無料に戻っていた。plan 以外の設定・記録はファイルから復元する。
+    next.settings.plan = state.settings.plan
+    commit(next)
   } catch (e) {
     // commit は try の外に置かない: 例外が呼び出し側（SettingsScreen の
     // reader.onload）まで抜けると、成功トーストもエラートーストも出ない。
