@@ -590,11 +590,42 @@ describe('importJSON — 有効パーティション', () => {
     expect(s.getState().settings.plan).toBe('free')
   })
 
-  it('EP: import 後の state は localStorage にも反映される', async () => {
+  it('ST-IMP04: import 後の state は localStorage にも反映される（plan は読み込み前のまま）', async () => {
+    // v2.5.0（§6-7）で期待値を変更: 以前はファイルの plan:'pro' が paid として保存されていた。
     const s = await freshStore()
     s.importJSON(JSON.stringify({ version: 3, bikes: validBikes(), settings: { plan: 'pro', activeBikeId: 'bike-1' } }))
-    expect(readPersisted().settings.plan).toBe('paid')
+    expect(readPersisted().settings.plan).toBe('free')
     expect(readPersisted().bikes[0].items[0].intervalDays).toBe(21)
+  })
+})
+
+// v2.5.0 §6-7 バックアップの読み込みでプランを上書きしない（課金状態の正は RevenueCat）。
+describe('importJSON — プランは読み込み前のまま（§6-7）', () => {
+  it('ST-IMP01: paid の状態で購入前の古いバックアップ（free）を読み込む → paid のまま、記録は置き換わる', async () => {
+    const s = await freshStore()
+    s.setPlan('paid')
+    const r = s.importJSON(JSON.stringify({ version: 3, bikes: validBikes(), settings: { plan: 'free', activeBikeId: 'bike-1' } }))
+    expect(r).toEqual({ ok: true })
+    expect(s.getState().settings.plan).toBe('paid')
+    expect(readPersisted().settings.plan).toBe('paid')
+    expect(s.getState().bikes[0].name).toBe('通勤号')
+    expect(air(s).intervalDays).toBe(21)
+  })
+
+  it('ST-IMP02: free の状態で paid のバックアップを読み込む → free のまま', async () => {
+    const s = await freshStore()
+    const r = s.importJSON(JSON.stringify({ version: 3, bikes: validBikes(), settings: { plan: 'paid', activeBikeId: 'bike-1' } }))
+    expect(r).toEqual({ ok: true })
+    expect(s.getState().settings.plan).toBe('free')
+    expect(readPersisted().settings.plan).toBe('free')
+    expect(s.getState().bikes[0].name).toBe('通勤号')
+  })
+
+  it('ST-IMP02b: プラン以外の設定（テーマ）はファイルから復元する', async () => {
+    const s = await freshStore()
+    s.importJSON(JSON.stringify({ version: 3, bikes: validBikes(), settings: { plan: 'paid', theme: 'light', activeBikeId: 'bike-1' } }))
+    expect(s.getState().settings.theme).toBe('light')
+    expect(s.getState().settings.plan).toBe('free')
   })
 })
 

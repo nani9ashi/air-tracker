@@ -565,6 +565,7 @@ v2.5.0 で追加。**この節はテストコードより先に書いた**（テ
 |---|---|---|---|
 | ST-IMP01 | paid | free（購入前の古いバックアップ） | **paid のまま**（記録は置き換わる） |
 | ST-IMP02 | free | paid | **free のまま** |
+| ST-IMP02b | free | paid（テーマ light） | free のまま、テーマは light に復元（plan 以外の設定はファイルから） |
 | ST-IMP03 | free | v2 `isPremium:true` | free のまま（既存テストの期待値を変更） |
 | ST-IMP04 | free | 'pro' | 保存されるのも free（既存テストの期待値を変更） |
 | ST-IMP05 | paid | 自分の書き出し（paid） | 往復で同一（既存どおり） |
