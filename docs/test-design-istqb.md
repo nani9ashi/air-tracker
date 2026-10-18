@@ -575,6 +575,51 @@ v2.5.0 で追加。**この節はテストコードより先に書いた**（テ
 | ST-IMP04 | free | 'pro' | 保存されるのも free（既存テストの期待値を変更） |
 | ST-IMP05 | paid | 自分の書き出し（paid） | 往復で同一（既存どおり） |
 
+### §6-8 v2.5.1 での追加 — 不正な応答と初期化の再試行
+
+v2.5.0 の残存リスク2件（[完了レポート §17](./test-completion-report.md)）を、テスト先行で閉じる。
+
+**不正な応答は「不明」**: 照会・復元の応答で `entitlements.active` が読めないときは、
+「未購入で確定」ではなく「不明」として扱う（更新通知の ST-L04 と同じ扱い。降格しない側）。
+
+| ID | 入力 | 期待 |
+|---|---|---|
+| ST-Q01 | 照会の応答に `customerInfo` が無い | `{ ok:false, status:'unknown', reason:'invalid' }` |
+| ST-Q02 | `customerInfo` に `entitlements` が無い | 同上 |
+| ST-Q03 | `entitlements.active` が無い・null | 同上 |
+| ST-Q04 | 起動時リストア（cached paid）で応答が不正 | setPlan を呼ばない（降格しない） |
+| ST-Q05 | 復元の応答が不正 | unknown/invalid、setPlan を呼ばない |
+| （回帰） | `entitlements.active` が `{}` | confirmed/false のまま（既存） |
+
+**初期化の再試行**: configure が失敗したら結果を記憶せず、次に SDK を使うときに再試行する。
+
+```
+利用不可（configure 失敗）--次の呼び出し--> 初期化中 --成功--> 準備完了（以後 configure しない）
+                                                  \--失敗--> 利用不可（次の呼び出しでまた再試行）
+APIキー未設定 --> 利用不可（再試行しない）
+```
+
+| ID | シナリオ | 期待 |
+|---|---|---|
+| ST-I10 | 1回目の configure が失敗 → 価格は null。次の呼び出しで再試行して成功 | 価格を返す。configure は計2回 |
+| ST-I11 | 失敗のあと、同時に価格と照会を呼ぶ | configure は1回にまとまる（計2回） |
+| ST-I12 | APIキー未設定で何度呼んでも | configure を呼ばない |
+| ST-I13 | 失敗 → 再試行で成功 → さらに呼び出し | 更新通知の登録は1回だけ。configure も成功後は増えない |
+| （回帰） | configure が毎回失敗（ST-I05〜I07） | 毎回 unavailable／null（既存） |
+
+---
+
+## §7 `Heatmap.jsx` — 凡例の向きと表示位置（v2.5.1）
+
+描画の確認（`@testing-library/react`）。jsdom はレイアウトを計算しないため、スクロールは
+`scrollWidth` と `scrollLeft` の setter を差し替えて確認する。
+
+| ID | 対象 | 期待 |
+|---|---|---|
+| UI-H01 | 凡例の並び | 「多・pump・fresh・mid・empty・少」→ 区切り →「soon・期限間近」→「over・超過」（目盛りごと反転。明るい色＝多 の意味は変えない） |
+| UI-H02 | 描画の直後 | `.heatmap__scroll` を右端（最新の週）までスクロールする |
+| UI-H03 | 列数が増えたとき（再描画） | もう一度右端までスクロールする |
+
 ---
 
 ## Findings
