@@ -137,15 +137,16 @@ export default function Heatmap({ history, intervalDays = 14, weeks = 18 }) {
         </div>
       </div>
 
-      {/* 色見本と説明は1つのまとまり（折り返しても別の行に分かれない） */}
+      {/* 色見本と説明は1つのまとまり（折り返しても別の行に分かれない）。
+          v2.5.1: 目盛りは「多（明）→ 少（暗）」の向き。明るい色＝多 の意味は変えない。 */}
       <div className="heatmap__legend" aria-hidden="true">
         <span className="heatmap__legend-group">
-          <span className="heatmap__legend-label">少</span>
-          <span className="heatmap__cell heatmap__cell--empty" />
-          <span className="heatmap__cell heatmap__cell--mid" />
-          <span className="heatmap__cell heatmap__cell--fresh" />
-          <span className="heatmap__cell heatmap__cell--pump" />
           <span className="heatmap__legend-label">多</span>
+          <span className="heatmap__cell heatmap__cell--pump" />
+          <span className="heatmap__cell heatmap__cell--fresh" />
+          <span className="heatmap__cell heatmap__cell--mid" />
+          <span className="heatmap__cell heatmap__cell--empty" />
+          <span className="heatmap__legend-label">少</span>
         </span>
         <span className="heatmap__legend-sep" />
         <span className="heatmap__legend-group">
