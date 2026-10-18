@@ -392,6 +392,175 @@ console.log(chosen.map((c) => c.map((v, i) => F[i][1][v])))
 
 ---
 
+## §6 `billing.js` / `PaywallSheet.jsx` — 課金の異常系（v2.5.0）
+
+v2.5.0 で追加。**この節はテストコードより先に書いた**（テスト先行）。以降のテストは
+ここで振った ID をテスト名の先頭に付けて対応させる。
+
+### 前提と設計原則（変更しない）
+
+- 課金状態の正は RevenueCat。`settings.plan` は表示用のキャッシュ。
+- 照会が「不明」（オフライン・タイムアウト・未初期化）のときは**絶対に降格しない**（既存の決定表8行 `billing.reconcile.dt.test.js`）。
+- billing.js の関数は例外を投げず `{ ok, reason }` を返す（house pattern）。
+- SDK のエラーは Capacitor 経由で `{ code: '1', message, data }` の形で届く（`code` は数値の文字列。
+  `purchases-capacitor` の `rejectWithErrorContainer`）。configure 前の呼び出しは
+  `code` なし・`"Purchases must be configured before calling this function"` で拒否される
+  （`rejectIfNotConfigured`）。
+
+### §6-1 エラーの分類 `classifyPurchaseError(e)` — デシジョンテーブル
+
+判定の優先順位: ① SDK の `userCancelled` フラグ → ② `code`（文字列・数値のどちらでも）→
+③ `code` が無いときだけ文言。**`code` があるときは文言を見ない**（失敗をキャンセルと
+取り違えると何も表示されず、利用者が状況を知れないため。逆の取り違えは文言が出るだけで済む）。
+
+| ID | 入力 | reason |
+|---|---|---|
+| DT-E01 | `{ code: '1' }` | cancelled |
+| DT-E02 | `{ code: 1 }`（数値） | cancelled |
+| DT-E03 | `{ userCancelled: true }`（code なし） | cancelled |
+| DT-E04 | `{ code: '2', userCancelled: true }` | cancelled（SDK のフラグが優先） |
+| DT-E05 | `{ data: { userCancelled: true } }` | cancelled |
+| DT-E06 | `{ code: '20' }` 支払い保留 | pending |
+| DT-E07 | `{ code: '6' }` 購入済み | already-owned |
+| DT-E08 | `{ code: '3' }` 購入が許可されていない | not-allowed |
+| DT-E09 | `{ code: '10' }` 通信エラー | network |
+| DT-E10 | `{ code: '35' }` オフライン | network |
+| DT-E11 | `{ code: '15' }` 処理中 | in-progress |
+| DT-E12 | `{ code: '5' }` 商品が購入できない | unavailable |
+| DT-E13 | `{ code: '0' }` 不明 | failed |
+| DT-E14 | `{ code: '2' }` ストアの問題 | failed |
+| DT-E15 | `{ code: '23' }` 設定エラー | failed |
+| DT-E16 | `{ code: '2', message: '…cancelled…' }` | failed（code が優先） |
+| DT-E17 | code なし・`'Purchases must be configured…'` | not-ready |
+| DT-E18 | code なし・`'Purchase was cancelled by the user'` | cancelled（v2.4 までの互換） |
+| DT-E19 | `new Error('network error')`（code なし） | failed |
+| DT-E20 | `null` / `undefined` | failed |
+| DT-E21 | 文字列 `'boom'` | failed |
+| DT-E22 | `{ code: '' }`（空） | failed（code なし扱い） |
+
+### §6-2 `purchase()` の結果 — デシジョンテーブル
+
+| ID | 条件 | 結果 | setPlan |
+|---|---|---|---|
+| DT-P01 | code 20 | `{ ok:false, reason:'pending' }` | 呼ばない |
+| DT-P02 | code 6 → 復元で権利あり | `{ ok:true, restored:true }` | 'paid' |
+| DT-P03 | code 6 → 復元で権利なし | `{ ok:false, reason:'already-owned' }` | 呼ばない |
+| DT-P04 | code 6 → 復元が失敗 | `{ ok:false, reason:'already-owned' }` | 呼ばない |
+| DT-P05 | 購入成功だが権利なし → 再照会で権利あり | `{ ok:true }` | 'paid' |
+| DT-P06 | 購入成功だが権利なし → 再照会でも権利なし | `{ ok:false, reason:'not-entitled' }` | 呼ばない |
+| DT-P07 | code 10 | `{ ok:false, reason:'network' }` | 呼ばない |
+| DT-P08 | 購入の途中でもう一度 `purchase()` | 2回目は SDK を呼ばず `{ ok:false, reason:'in-progress' }` | — |
+| DT-P09 | 購入が終わったあとの `purchase()` | 再び購入できる（ガードが解除される） | — |
+
+既存の「購入成功だが権利なし → not-entitled」のテストは、DT-P06 に合わせて
+「再照会でも権利なし」の前提を明示する（仕様変更による前提の追加）。
+
+### §6-3 初期化の状態遷移
+
+```
+未初期化 --initBilling()--> 初期化中 --configure 成功--> 準備完了
+                                     \--configure 失敗／web／APIキーなし--> 利用不可
+```
+
+| ID | 現状態 ＼ イベント | 期待 |
+|---|---|---|
+| ST-I01 | 未初期化で `initBilling()` を2回 | configure は1回だけ（冪等） |
+| ST-I02 | 初期化中に `getPriceLabel()` | configure の完了を待ってから getOfferings を呼び、価格を返す |
+| ST-I03 | 初期化中に `purchase()` | configure の完了を待ってから購入する |
+| ST-I04 | 未初期化のまま `checkEntitlement()` | 自動で初期化してから照会する |
+| ST-I05 | 利用不可（configure 失敗）で `getPriceLabel()` | SDK を呼ばず null |
+| ST-I06 | 利用不可で `purchase()` | SDK を呼ばず `{ ok:false, reason:'unavailable' }` |
+| ST-I07 | 利用不可で `checkEntitlement()` | `{ ok:false, status:'unknown', reason:'unavailable' }` |
+| ST-I08 | APIキーなし（native） | configure を呼ばず、利用不可と同じ扱い |
+| ST-I09 | web | 既存どおり（web-unsupported／DEV のシミュレーション）。初期化を待たない |
+
+### §6-4 タイムアウト — 境界値（偽のタイマー）
+
+上限は `PRICE_TIMEOUT_MS = QUERY_TIMEOUT_MS = 10000`。初期化待ちも上限に含める。
+
+| ID | 対象 | 入力 | 期待 |
+|---|---|---|---|
+| BVA-T01 | 価格 | getOfferings が戻らない・9,999ms 時点 | まだ未確定 |
+| BVA-T02 | 価格 | 同・10,000ms 時点 | null |
+| BVA-T03 | 価格 | getOfferings が 9,999ms で解決 | 価格を返す |
+| BVA-T04 | 照会 | getCustomerInfo が戻らない・10,000ms | `{ ok:false, status:'unknown', reason:'timeout' }` |
+| BVA-T05 | 起動時リストア | 照会がタイムアウト（cached paid） | setPlan を呼ばない（降格しない） |
+| BVA-T06 | 復元 | restorePurchases が戻らない・10,000ms | `{ ok:false, status:'unknown', reason:'timeout' }`、setPlan なし |
+| BVA-T07 | 購入 | getOfferings が戻らない・10,000ms | `{ ok:false, reason:'timeout' }`、purchasePackage は呼ばない |
+| BVA-T08 | 購入 | purchasePackage が 60,000ms 後に成功 | 成功（購入そのものはタイムアウトしない） |
+| BVA-T09 | 価格 | configure が戻らない・10,000ms | null |
+
+### §6-5 権利の反映と競合 — 状態遷移
+
+反映の経路は4つ: 起動時の照会・購入・復元・SDK からの更新通知。照会は開始時点の番号を
+持ち、そのあとに別の経路で権利が確定していたら結果を捨てる。購入・復元・更新通知は
+常にその時点で最新とみなす。
+
+| ID | シナリオ | 期待 |
+|---|---|---|
+| ST-R01 | 起動時の照会が遅い間に購入が成功 → 照会が「未購入」で届く | **降格しない**（plan は paid のまま） |
+| ST-R02 | 起動時の照会だけが届く（競合なし） | 既存の決定表どおり反映 |
+| ST-R03 | 照会の途中で更新通知（権利あり）→ 照会が「未購入」で届く | 降格しない |
+| ST-R04 | 照会の途中で復元が成功 → 照会が「未購入」で届く | 降格しない |
+| ST-L01 | `initBilling()` で更新通知を1回だけ登録（2回呼んでも1回） | addCustomerInfoUpdateListener が1回 |
+| ST-L02 | 更新通知: 権利あり（cached free） | setPlan('paid')（保留中の支払いの完了） |
+| ST-L03 | 更新通知: 権利なし（cached paid） | setPlan('free')（返金・失効） |
+| ST-L04 | 更新通知: 中身が null や entitlements なし | 何もしない |
+| ST-L05 | 登録が失敗 | 初期化は準備完了のまま（起動を止めない） |
+| ST-L06 | web／APIキーなし | 登録しない |
+| ST-S01 | `restorePurchases()` 権利あり（cached free） | setPlan('paid') |
+| ST-S02 | `restorePurchases()` 権利なし（cached paid） | setPlan('free')（確定した照会結果） |
+| ST-S03 | `restorePurchases()` 失敗 | setPlan を呼ばない |
+
+### §6-6 購入画面（PaywallSheet）— 状態遷移
+
+```
+閉 --open--> 価格取得中 --価格--> 準備完了 --購入--> 購入中 --+--> 成功（自動で閉じる）
+                  \--null--> 価格なし(再読み込み)            +--> 保留
+                                                            +--> エラー(種別ごとの文言)
+             準備完了 --復元--> 復元中 --> 復元成功（自動で閉じる）／履歴なし／確認できず
+```
+
+| ID | 遷移 | 期待 |
+|---|---|---|
+| ST-U01 | 購入 → pending | 「お支払いの手続き中」の案内（エラー表示ではない）。購入ボタンは出さない。EV.PURCHASE pending |
+| DT-U02 | 購入 → 各エラー reason | reason ごとの文言（下表）。EV.PURCHASE failed |
+| ST-U03 | 購入 → `{ ok:true, restored:true }` | 「購入済みの記録を確認し、Proを有効にしました」。EV.PURCHASE restored |
+| ST-U04 | 復元 → 権利あり | 「購入を復元しました」→ 自動で閉じる。EV.PURCHASE restored |
+| ST-U05 | 復元 → 権利なし | 「購入履歴が見つかりませんでした…」 |
+| ST-U06 | 復元 → 失敗・不明 | 「確認できませんでした…」 |
+| ST-U07 | 復元中 | 購入ボタンと復元ボタンを無効化 |
+| ST-U08 | 購入中 | 復元ボタンを無効化 |
+| ST-U09 | 価格なし → 再読み込み | もう一度 getPriceLabel を呼び、価格を表示 |
+| ST-invalid-U10 | 購入中に閉じる → 開き直す → 古い購入が成功で届く | 新しい画面は成功にならない。onClose は呼ばれない |
+| ST-invalid-U11 | 成功 → 自動で閉じる前に自分で閉じる | onClose は1回だけ（タイマーが解除される） |
+| ST-U12 | 開いている間に plan が paid になる（更新通知） | 「Proが有効になりました」→ 自動で閉じる |
+| ST-U13 | 非native（PWA本番） | 復元ボタンも出さない |
+
+| reason | 文言 |
+|---|---|
+| network / timeout | 通信できませんでした。通信環境を確認して、もう一度お試しください。 |
+| not-allowed | この端末またはアカウントでは購入できません。Google Play の設定をご確認ください。 |
+| unavailable / no-offering / not-ready | 現在購入できません。時間をおいてお試しください。 |
+| in-progress | 購入処理中です。しばらくお待ちください。 |
+| not-entitled | 購入は完了しましたが、まだ反映されていません。少し待ってから「購入を復元」をお試しください。 |
+| already-owned | 購入済みの記録を確認できませんでした。「購入を復元」をお試しください。 |
+| failed ほか | 購入できませんでした。時間をおいてお試しください。（従来どおり） |
+
+### §6-7 バックアップの読み込みとプラン（§5-4 への追加）
+
+`importJSON` は読み込み前の `settings.plan` を保つ（課金状態の正は RevenueCat）。
+
+| ID | 現在の plan | ファイルの plan | 読み込み後 |
+|---|---|---|---|
+| ST-IMP01 | paid | free（購入前の古いバックアップ） | **paid のまま**（記録は置き換わる） |
+| ST-IMP02 | free | paid | **free のまま** |
+| ST-IMP03 | free | v2 `isPremium:true` | free のまま（既存テストの期待値を変更） |
+| ST-IMP04 | free | 'pro' | 保存されるのも free（既存テストの期待値を変更） |
+| ST-IMP05 | paid | 自分の書き出し（paid） | 往復で同一（既存どおり） |
+
+---
+
 ## Findings
 
 設計中（v2.1.8）に判明した実装／要件の疑義です。当時はテストで現行挙動を固定するにとどめ、
