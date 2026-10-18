@@ -61,6 +61,9 @@ beforeEach(() => {
   vi.clearAllMocks()
   vi.unstubAllEnvs()
   vi.useRealTimers()
+  // v2.5.0: SDK の呼び出しは初期化（APIキー必須）を待つようになったため、周囲の
+  // .env.local に頼らず APIキーを明示する（未設定のテストは個別に '' を入れる）。
+  vi.stubEnv('VITE_REVENUECAT_API_KEY', 'goog_unit')
   nativeFlag.value = true
   configure.mockResolvedValue(undefined)
   getCustomerInfo.mockResolvedValue(entitled())
