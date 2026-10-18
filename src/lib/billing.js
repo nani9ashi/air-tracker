@@ -71,16 +71,25 @@ function withTimeout(p, ms) {
   return Promise.race([p, timeout]).finally(() => clearTimeout(timer))
 }
 
-// ---- 初期化（v2.5.0。§6-3） ----
-// configure は1回だけ行い、その結果（true=準備完了 / false=利用不可）を Promise で持つ。
-// SDK を呼ぶ関数はすべてこれを待つ: configure の完了前に呼ぶと SDK が
-// 「Purchases must be configured…」で拒否するため（起動直後にペイウォールを開くと
-// 価格が取れないままになっていた）。
-// 利用不可 = APIキー未設定（Step0未完了）または configure の失敗。
+// ---- 初期化（v2.5.0。§6-3。再試行は v2.5.1 §6-8） ----
+// configure が成功するまで行い、その結果（true=準備完了 / false=利用不可）を Promise で持つ。
+// 成功したら二度と configure しない。SDK を呼ぶ関数はすべてこれを待つ: configure の完了前に
+// 呼ぶと SDK が「Purchases must be configured…」で拒否するため（起動直後にペイウォールを
+// 開くと価格が取れないままになっていた）。
+// 利用不可 = APIキー未設定（Step0未完了。SDK は呼ばない）または configure の失敗（次の呼び出しで再試行）。
 let ready = null
 
 function ensureReady() {
-  if (!ready) ready = configureOnce()
+  if (!ready) {
+    ready = configureOnce().then((ok) => {
+      // configure の失敗は記憶せず、次に SDK を使うとき（購入画面を開く等）に再試行する
+      // （v2.5.1。§6-8 ST-I10〜I13）。同時の呼び出しは、この Promise を共有して1回にまとまる。
+      // APIキー未設定のときは configureOnce が SDK を呼ばずに false を返すだけなので、
+      // 何度やり直しても configure は呼ばれない（ST-I12）。
+      if (!ok) ready = null
+      return ok
+    })
+  }
   return ready
 }
 
