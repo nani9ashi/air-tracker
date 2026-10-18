@@ -104,22 +104,61 @@ export async function getPriceLabel() {
 }
 
 // 購入を実行する。成功時は setPlan('paid') までこの関数の責務として行う
-// （呼び出し側＝将来のペイウォールUIは結果の表示だけに専念できる）。
+// （呼び出し側＝ペイウォールUIは結果の表示だけに専念できる）。
+// 失敗は reason で区別する（docs/test-design-istqb.md §6-2）:
+//   pending（支払い保留）/ already-owned（購入済みで復元もできない）/
+//   not-entitled（支払い後も権利が付かない）/ in-progress（購入の途中）/
+//   no-offering / それ以外は classifyPurchaseError の分類どおり。
+let purchasing = false
+
 export async function purchase() {
   if (!NATIVE) return import.meta.env.DEV ? devSimulatedPurchase() : { ok: false, reason: 'native-only' }
+  // 二重購入ガード（DT-P08）。画面側でもボタンを無効化しているが、別の画面から
+  // 同時に呼ばれても SDK に購入を重ねて投げない。
+  if (purchasing) return { ok: false, reason: 'in-progress' }
+  purchasing = true
+  try {
+    return await purchaseNative()
+  } finally {
+    purchasing = false
+  }
+}
+
+async function purchaseNative() {
+  let customerInfo
   try {
     const offerings = await Purchases.getOfferings()
     const pkg = offerings?.current?.availablePackages?.[0]
     if (!pkg) return { ok: false, reason: 'no-offering' }
-    const { customerInfo } = await Purchases.purchasePackage({ aPackage: pkg })
-    const entitled = !!customerInfo?.entitlements?.active?.[ENTITLEMENT_ID]
-    if (entitled) setPlan('paid')
-    return entitled ? { ok: true } : { ok: false, reason: 'not-entitled' }
+    ;({ customerInfo } = await Purchases.purchasePackage({ aPackage: pkg }))
   } catch (e) {
-    if (isUserCancellation(e)) return { ok: false, reason: 'cancelled' }
-    console.warn('[billing] purchase failed', e)
-    return { ok: false, reason: 'failed' }
+    const reason = classifyPurchaseError(e)
+    // 購入済み（再インストール後にオフラインで起動した等）→ 復元して有効にする（DT-P02〜P04）。
+    if (reason === 'already-owned') return recoverAlreadyOwned()
+    // 自分でやめた操作と支払い保留は「失敗」ではないので warn しない。
+    if (reason !== 'cancelled' && reason !== 'pending') console.warn('[billing] purchase failed', e)
+    return { ok: false, reason }
   }
+  if (isEntitled(customerInfo)) {
+    setPlan('paid')
+    return { ok: true }
+  }
+  // 支払いは済んだのに権利が付いていない（反映の遅れ等）→ 1回だけ再照会する（DT-P05/P06）。
+  const recheck = await checkEntitlement()
+  if (recheck.status === 'confirmed' && recheck.entitled) {
+    setPlan('paid')
+    return { ok: true }
+  }
+  return { ok: false, reason: 'not-entitled' }
+}
+
+async function recoverAlreadyOwned() {
+  const restored = await restorePurchases()
+  if (restored.status === 'confirmed' && restored.entitled) {
+    setPlan('paid')
+    return { ok: true, restored: true }
+  }
+  return { ok: false, reason: 'already-owned' }
 }
 
 // ⚠ 開発限定: RevenueCat未設定（Step0未完了）でもペイウォールUIの購入フローを
@@ -158,8 +197,40 @@ export async function restoreEntitlementOnStartup() {
   return result
 }
 
-// ユーザーが購入ダイアログを自分で閉じた/キャンセルしたことを、他の失敗と区別する
-// （backup.js の isCancellation と同じ原則：閉じただけの操作にエラー表示しない）。
-function isUserCancellation(e) {
-  return /cancel/i.test(String(e?.message || e?.code || e))
+const isEntitled = (customerInfo) => !!customerInfo?.entitlements?.active?.[ENTITLEMENT_ID]
+
+// ============================================================
+// SDK のエラー → reason の分類（v2.5.0。docs/test-design-istqb.md §6-1）。
+// ============================================================
+
+// SDK のエラーコード（purchases-typescript-internal の PURCHASES_ERROR_CODE）→ reason。
+// ここに無いコード（0 不明・2 ストアの問題・23 設定エラー等）は 'failed'。
+const ERROR_REASONS = {
+  1: 'cancelled', // PURCHASE_CANCELLED_ERROR
+  3: 'not-allowed', // PURCHASE_NOT_ALLOWED_ERROR（課金できない端末・アカウント）
+  5: 'unavailable', // PRODUCT_NOT_AVAILABLE_FOR_PURCHASE_ERROR
+  6: 'already-owned', // PRODUCT_ALREADY_PURCHASED_ERROR
+  10: 'network', // NETWORK_ERROR
+  15: 'in-progress', // OPERATION_ALREADY_IN_PROGRESS_ERROR
+  20: 'pending', // PAYMENT_PENDING_ERROR（コンビニ払い等）
+  35: 'network', // OFFLINE_CONNECTION_ERROR
+}
+
+// Capacitor 経由の SDK エラーは { code: '20', message, data } の形で届く。
+// 優先順位: ① SDK の userCancelled フラグ → ② code → ③ code が無いときだけ文言。
+// 🔒 code があるときは文言を見ない（DT-E16）。失敗をキャンセルと取り違えると
+//   何も表示されず、利用者が状況を知れないため（逆の取り違えは文言が出るだけで済む）。
+// configure 前の呼び出しは code なしの "Purchases must be configured…" で拒否される。
+export function classifyPurchaseError(e) {
+  if (e?.userCancelled === true || e?.data?.userCancelled === true) return 'cancelled'
+  const code = e?.code
+  if (code !== undefined && code !== null && String(code) !== '') {
+    return ERROR_REASONS[String(code)] ?? 'failed'
+  }
+  const message = String(e?.message ?? e ?? '')
+  if (/must be configured/i.test(message)) return 'not-ready'
+  // v2.4 までの文言による判定（backup.js の isCancellation と同じ原則：閉じただけの操作に
+  // エラー表示しない）。code の無いエラーに対してだけ使う。
+  if (/cancel/i.test(message)) return 'cancelled'
+  return 'failed'
 }
