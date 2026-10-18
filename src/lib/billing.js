@@ -131,7 +131,13 @@ async function queryEntitlement(call, label) {
       console.warn(`[billing] ${label} timed out`)
       return { ok: false, status: 'unknown', reason: 'timeout' }
     }
-    return { ok: true, status: 'confirmed', entitled: isEntitled(r?.customerInfo) }
+    // 応答の中身が不正なら「不明」（v2.5.1。§6-8）。確定として扱うと有料の利用者が降格し得る。
+    const entitled = readEntitled(r?.customerInfo)
+    if (entitled === null) {
+      console.warn(`[billing] ${label} returned an invalid response`)
+      return { ok: false, status: 'unknown', reason: 'invalid' }
+    }
+    return { ok: true, status: 'confirmed', entitled }
   } catch (e) {
     console.warn(`[billing] ${label} failed`, e)
     return { ok: false, status: 'unknown', reason: 'failed' }
@@ -219,7 +225,7 @@ async function purchaseNative() {
     if (reason !== 'cancelled' && reason !== 'pending') console.warn('[billing] purchase failed', e)
     return { ok: false, reason }
   }
-  if (isEntitled(customerInfo)) {
+  if (readEntitled(customerInfo) === true) {
     applyEntitlement({ ok: true, status: 'confirmed', entitled: true })
     return { ok: true }
   }
@@ -297,12 +303,18 @@ function applyEntitlement(result, since) {
 
 // SDK からの更新通知。中身が不正（entitlements.active が無い）なら何もしない（ST-L04）。
 function onCustomerInfoUpdated(customerInfo) {
-  const active = customerInfo?.entitlements?.active
-  if (!active || typeof active !== 'object') return
-  applyEntitlement({ ok: true, status: 'confirmed', entitled: !!active[ENTITLEMENT_ID] })
+  const entitled = readEntitled(customerInfo)
+  if (entitled === null) return
+  applyEntitlement({ ok: true, status: 'confirmed', entitled })
 }
 
-const isEntitled = (customerInfo) => !!customerInfo?.entitlements?.active?.[ENTITLEMENT_ID]
+// customerInfo から権利の有無を読む。true / false、形が不正（entitlements.active が
+// 読めない）なら null（v2.5.1。§6-8）。更新通知・照会・復元・購入で共有し、扱いをそろえる。
+function readEntitled(customerInfo) {
+  const active = customerInfo?.entitlements?.active
+  if (!active || typeof active !== 'object') return null
+  return !!active[ENTITLEMENT_ID]
+}
 
 // ============================================================
 // SDK のエラー → reason の分類（v2.5.0。docs/test-design-istqb.md §6-1）。
