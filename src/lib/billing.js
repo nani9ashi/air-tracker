@@ -88,11 +88,18 @@ async function configureOnce() {
   if (!API_KEY) return false
   try {
     await Purchases.configure({ apiKey: API_KEY })
-    return true
   } catch (e) {
     console.warn('[billing] configure failed', e)
     return false
   }
+  // SDK からの更新通知（§6-5 ST-L01〜L05）。保留中の支払いの完了や返金を、次の起動を
+  // 待たずに反映する。登録に失敗しても課金そのものは使えるので、起動は止めない。
+  try {
+    await Purchases.addCustomerInfoUpdateListener(onCustomerInfoUpdated)
+  } catch (e) {
+    console.warn('[billing] addCustomerInfoUpdateListener failed', e)
+  }
+  return true
 }
 
 // アプリ起動時に一度呼ぶ。APIキー未設定（Step0未完了）や web では no-op。
@@ -141,9 +148,12 @@ export async function checkEntitlement() {
 
 // ユーザー起動の「購入を復元」ボタン用。checkEntitlement と違い、
 // ストアへ明示的に再照会させる（restorePurchases）。
+// 確定した結果は反映する（権利なしで確定したら free へ。§6-5 ST-S01〜S03）。
 export async function restorePurchases() {
   if (!NATIVE) return { ok: true, status: 'unknown', reason: 'web-unsupported' }
-  return queryEntitlement(() => Purchases.restorePurchases(), 'restore')
+  const result = await queryEntitlement(() => Purchases.restorePurchases(), 'restore')
+  applyEntitlement(result)
+  return result
 }
 
 // ペイウォールに表示する価格文字列。ハードコードしない（Play側の価格変更に追従）。
@@ -210,24 +220,23 @@ async function purchaseNative() {
     return { ok: false, reason }
   }
   if (isEntitled(customerInfo)) {
-    setPlan('paid')
+    applyEntitlement({ ok: true, status: 'confirmed', entitled: true })
     return { ok: true }
   }
   // 支払いは済んだのに権利が付いていない（反映の遅れ等）→ 1回だけ再照会する（DT-P05/P06）。
+  const since = epoch
   const recheck = await checkEntitlement()
   if (recheck.status === 'confirmed' && recheck.entitled) {
-    setPlan('paid')
+    applyEntitlement(recheck, since)
     return { ok: true }
   }
   return { ok: false, reason: 'not-entitled' }
 }
 
+// 購入済み（code 6）→ 復元して有効にする。復元の結果は restorePurchases が反映する。
 async function recoverAlreadyOwned() {
   const restored = await restorePurchases()
-  if (restored.status === 'confirmed' && restored.entitled) {
-    setPlan('paid')
-    return { ok: true, restored: true }
-  }
+  if (restored.status === 'confirmed' && restored.entitled) return { ok: true, restored: true }
   return { ok: false, reason: 'already-owned' }
 }
 
@@ -257,14 +266,40 @@ export function reconcilePlan(cachedPlan, restoreResult) {
   return next === cachedPlan ? null : next
 }
 
-// アプリ起動時に一度呼ぶ（initBilling の後）。現在のキャッシュ値と実際の
-// エンタイトルメントを照会し、確定した差分だけ setPlan で反映する。
+// アプリ起動時に一度呼ぶ（initBilling の後）。実際のエンタイトルメントを照会し、
+// 確定した差分だけ反映する。照会の途中で購入・復元・更新通知により権利が確定して
+// いたら、この照会の結果は古いので捨てる（§6-5 ST-R01〜R04）。
 export async function restoreEntitlementOnStartup() {
-  const cached = getState().settings.plan
+  const since = epoch
   const result = await checkEntitlement()
-  const next = reconcilePlan(cached, result)
-  if (next) setPlan(next)
+  applyEntitlement(result, since)
   return result
+}
+
+// ---- 権利の反映（v2.5.0。§6-5） ----
+// 反映の経路は4つ（起動時の照会・購入・復元・SDK からの更新通知）で、すべてここを通す。
+// 結果が届いた時点の plan と比べて、確定した差分だけ setPlan する。
+// epoch は「確定した権利を反映した回数」。照会は開始時点の epoch（since）を持ち、
+// そのあとに別の経路で反映されていたら古い結果として捨てる。
+// （v2.4 は照会の開始時点の plan と比べていたため、1回の割り込みなら偶然安全だったが、
+//   反映を一本化して届いた時点の plan と比べる以上、この番号が無いと降格が起きる。）
+// 購入・復元・更新通知は、その時点で最新の結果なので since を付けない。
+let epoch = 0
+
+function applyEntitlement(result, since) {
+  if (result?.status !== 'confirmed') return null // 不明のまま＝何もしない（降格しない）
+  if (since !== undefined && since !== epoch) return null // 古い照会結果
+  epoch += 1
+  const next = reconcilePlan(getState().settings.plan, result)
+  if (next) setPlan(next)
+  return next
+}
+
+// SDK からの更新通知。中身が不正（entitlements.active が無い）なら何もしない（ST-L04）。
+function onCustomerInfoUpdated(customerInfo) {
+  const active = customerInfo?.entitlements?.active
+  if (!active || typeof active !== 'object') return
+  applyEntitlement({ ok: true, status: 'confirmed', entitled: !!active[ENTITLEMENT_ID] })
 }
 
 const isEntitled = (customerInfo) => !!customerInfo?.entitlements?.active?.[ENTITLEMENT_ID]
