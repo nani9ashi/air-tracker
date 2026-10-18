@@ -15,6 +15,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 const {
   nativeFlag,
   configure,
+  addCustomerInfoUpdateListener,
   getCustomerInfo,
   restorePurchasesMock,
   getOfferings,
@@ -24,6 +25,7 @@ const {
 } = vi.hoisted(() => ({
   nativeFlag: { value: true },
   configure: vi.fn(),
+  addCustomerInfoUpdateListener: vi.fn(),
   getCustomerInfo: vi.fn(),
   restorePurchasesMock: vi.fn(),
   getOfferings: vi.fn(),
@@ -36,6 +38,7 @@ vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => nativeF
 vi.mock('@revenuecat/purchases-capacitor', () => ({
   Purchases: {
     configure,
+    addCustomerInfoUpdateListener,
     getCustomerInfo,
     restorePurchases: restorePurchasesMock,
     getOfferings,
@@ -66,6 +69,7 @@ beforeEach(() => {
   vi.stubEnv('VITE_REVENUECAT_API_KEY', 'goog_unit')
   nativeFlag.value = true
   configure.mockResolvedValue(undefined)
+  addCustomerInfoUpdateListener.mockResolvedValue('listener-1')
   getCustomerInfo.mockResolvedValue(entitled())
   restorePurchasesMock.mockResolvedValue(entitled())
   getOfferings.mockResolvedValue(withOffering())

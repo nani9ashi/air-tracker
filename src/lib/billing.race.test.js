@@ -298,3 +298,162 @@ describe('§6-4 タイムアウトの境界値', () => {
     expect(getOfferings).not.toHaveBeenCalled()
   })
 })
+
+// ============================================================
+// §6-5 権利の反映と競合・SDK からの更新通知
+// ============================================================
+const listenerOf = () => addCustomerInfoUpdateListener.mock.calls[0]?.[0]
+const info = (isEntitled) => (isEntitled ? entitled() : notEntitled()).customerInfo
+
+describe('§6-5 競合: 古い照会結果で降格しない', () => {
+  it('ST-R01: 起動時の照会が遅い間に購入が成功 → 照会が「未購入」で届いても paid のまま', async () => {
+    const b = await loadBilling()
+    await b.initBilling()
+    const slow = deferred()
+    getCustomerInfo.mockReturnValueOnce(slow.promise)
+    const startup = b.restoreEntitlementOnStartup()
+    await flush()
+    await expect(b.purchase()).resolves.toEqual({ ok: true })
+    expect(plan).toBe('paid')
+    slow.resolve(notEntitled())
+    await startup
+    expect(plan).toBe('paid')
+    expect(setPlan).not.toHaveBeenCalledWith('free')
+  })
+
+  it('ST-R02a: 競合が無ければ照会結果を反映する（cached paid・未購入で確定 → free）', async () => {
+    plan = 'paid'
+    getCustomerInfo.mockResolvedValue(notEntitled())
+    const b = await loadBilling()
+    await b.initBilling()
+    await b.restoreEntitlementOnStartup()
+    expect(plan).toBe('free')
+  })
+
+  it('ST-R02b: 競合が無ければ照会結果を反映する（cached free・購入済みで確定 → paid）', async () => {
+    getCustomerInfo.mockResolvedValue(entitled())
+    const b = await loadBilling()
+    await b.initBilling()
+    await b.restoreEntitlementOnStartup()
+    expect(plan).toBe('paid')
+  })
+
+  it('ST-R03: 照会の途中で更新通知（権利あり）→ 照会が「未購入」で届いても paid のまま', async () => {
+    const b = await loadBilling()
+    await b.initBilling()
+    const slow = deferred()
+    getCustomerInfo.mockReturnValueOnce(slow.promise)
+    const startup = b.restoreEntitlementOnStartup()
+    await flush()
+    listenerOf()(info(true))
+    expect(plan).toBe('paid')
+    slow.resolve(notEntitled())
+    await startup
+    expect(plan).toBe('paid')
+  })
+
+  it('ST-R04: 照会の途中で復元が成功 → 照会が「未購入」で届いても paid のまま', async () => {
+    const b = await loadBilling()
+    await b.initBilling()
+    const slow = deferred()
+    getCustomerInfo.mockReturnValueOnce(slow.promise)
+    const startup = b.restoreEntitlementOnStartup()
+    await flush()
+    await b.restorePurchases()
+    expect(plan).toBe('paid')
+    slow.resolve(notEntitled())
+    await startup
+    expect(plan).toBe('paid')
+  })
+})
+
+describe('§6-5 SDK からの更新通知', () => {
+  it('ST-L01: initBilling() を2回呼んでも更新通知の登録は1回だけ', async () => {
+    const b = await loadBilling()
+    await b.initBilling()
+    await b.initBilling()
+    expect(addCustomerInfoUpdateListener).toHaveBeenCalledTimes(1)
+    expect(typeof listenerOf()).toBe('function')
+  })
+
+  it('ST-L02: 権利あり（cached free）→ setPlan(paid)（保留中の支払いの完了）', async () => {
+    const b = await loadBilling()
+    await b.initBilling()
+    listenerOf()(info(true))
+    expect(setPlan).toHaveBeenCalledWith('paid')
+    expect(plan).toBe('paid')
+  })
+
+  it('ST-L03: 権利なし（cached paid）→ setPlan(free)（返金・失効）', async () => {
+    plan = 'paid'
+    const b = await loadBilling()
+    await b.initBilling()
+    listenerOf()(info(false))
+    expect(setPlan).toHaveBeenCalledWith('free')
+  })
+
+  it.each([
+    ['null', null],
+    ['undefined', undefined],
+    ['entitlements なし', {}],
+    ['active なし', { entitlements: {} }],
+    ['active が null', { entitlements: { active: null } }],
+  ])('ST-L04: 中身が不正（%s）→ 何もしない（cached paid のまま）', async (_label, payload) => {
+    plan = 'paid'
+    const b = await loadBilling()
+    await b.initBilling()
+    listenerOf()(payload)
+    expect(setPlan).not.toHaveBeenCalled()
+  })
+
+  it('ST-L05: 登録が失敗しても初期化は準備完了のまま（起動を止めない）', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    addCustomerInfoUpdateListener.mockRejectedValueOnce(new Error('boom'))
+    const b = await loadBilling()
+    await expect(b.initBilling()).resolves.toBeUndefined()
+    await expect(b.getPriceLabel()).resolves.toBe('¥300')
+    expect(warn).toHaveBeenCalled()
+    warn.mockRestore()
+  })
+
+  it('ST-L06a: web では登録しない', async () => {
+    nativeFlag.value = false
+    const b = await loadBilling()
+    await b.initBilling()
+    expect(addCustomerInfoUpdateListener).not.toHaveBeenCalled()
+  })
+
+  it('ST-L06b: APIキーなしでは登録しない', async () => {
+    vi.stubEnv('VITE_REVENUECAT_API_KEY', '')
+    const b = await loadBilling()
+    await b.initBilling()
+    expect(addCustomerInfoUpdateListener).not.toHaveBeenCalled()
+  })
+})
+
+describe('§6-5 復元の反映', () => {
+  it('ST-S01: 権利あり（cached free）→ setPlan(paid)', async () => {
+    restorePurchasesMock.mockResolvedValue(entitled())
+    const b = await loadBilling()
+    await expect(b.restorePurchases()).resolves.toEqual({ ok: true, status: 'confirmed', entitled: true })
+    expect(plan).toBe('paid')
+  })
+
+  it('ST-S02: 権利なし（cached paid）→ setPlan(free)（確定した照会結果）', async () => {
+    plan = 'paid'
+    restorePurchasesMock.mockResolvedValue(notEntitled())
+    const b = await loadBilling()
+    await expect(b.restorePurchases()).resolves.toEqual({ ok: true, status: 'confirmed', entitled: false })
+    expect(plan).toBe('free')
+  })
+
+  it('ST-S03: 失敗 → setPlan を呼ばない', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    plan = 'paid'
+    restorePurchasesMock.mockRejectedValueOnce(new Error('network'))
+    const b = await loadBilling()
+    await expect(b.restorePurchases()).resolves.toEqual({ ok: false, status: 'unknown', reason: 'failed' })
+    expect(setPlan).not.toHaveBeenCalled()
+    warn.mockRestore()
+  })
+})
