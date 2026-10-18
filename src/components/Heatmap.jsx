@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useLayoutEffect, useMemo, useRef } from 'react'
 import { sortedHistory } from '../lib/stats.js'
 import { toDateInputValue, startOfDayLocal, computeStatus } from '../lib/date.js'
 import { getTextZoom } from '../lib/textZoom.js'
@@ -108,13 +108,22 @@ export default function Heatmap({ history, intervalDays = 14, weeks = 18 }) {
   const monthLabels = monthLabelsFor(columns, getTextZoom())
   const pumpCount = columns.flat().filter((c) => c.level === 'pump').length
 
+  // 最新の週（右端）を最初に表示する（v2.5.1。§7 UI-H02〜H04）。記録が長いと古い週から
+  // 表示され、直近を見るのに横スクロールが必要だった。列数が変わったとき（記録の追加・
+  // 表示期間の変更）だけ右端へ戻し、それ以外の再描画では利用者のスクロール位置を保つ。
+  const scrollRef = useRef(null)
+  useLayoutEffect(() => {
+    const el = scrollRef.current
+    if (el) el.scrollLeft = el.scrollWidth // ブラウザが上限（scrollWidth − clientWidth）に丸める
+  }, [columns.length])
+
   return (
     <div
       className="heatmap"
       role="img"
       aria-label={`直近${weeks}週間の空気入れ記録ヒートマップ。記録${pumpCount}件。`}
     >
-      <div className="heatmap__scroll">
+      <div className="heatmap__scroll" ref={scrollRef}>
         <div className="heatmap__body">
           <div className="heatmap__months" aria-hidden="true">
             {monthLabels.map((l, i) => (
@@ -137,15 +146,16 @@ export default function Heatmap({ history, intervalDays = 14, weeks = 18 }) {
         </div>
       </div>
 
-      {/* 色見本と説明は1つのまとまり（折り返しても別の行に分かれない） */}
+      {/* 色見本と説明は1つのまとまり（折り返しても別の行に分かれない）。
+          v2.5.1: 目盛りは「多（明）→ 少（暗）」の向き。明るい色＝多 の意味は変えない。 */}
       <div className="heatmap__legend" aria-hidden="true">
         <span className="heatmap__legend-group">
-          <span className="heatmap__legend-label">少</span>
-          <span className="heatmap__cell heatmap__cell--empty" />
-          <span className="heatmap__cell heatmap__cell--mid" />
-          <span className="heatmap__cell heatmap__cell--fresh" />
-          <span className="heatmap__cell heatmap__cell--pump" />
           <span className="heatmap__legend-label">多</span>
+          <span className="heatmap__cell heatmap__cell--pump" />
+          <span className="heatmap__cell heatmap__cell--fresh" />
+          <span className="heatmap__cell heatmap__cell--mid" />
+          <span className="heatmap__cell heatmap__cell--empty" />
+          <span className="heatmap__legend-label">少</span>
         </span>
         <span className="heatmap__legend-sep" />
         <span className="heatmap__legend-group">

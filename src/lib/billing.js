@@ -71,16 +71,25 @@ function withTimeout(p, ms) {
   return Promise.race([p, timeout]).finally(() => clearTimeout(timer))
 }
 
-// ---- 初期化（v2.5.0。§6-3） ----
-// configure は1回だけ行い、その結果（true=準備完了 / false=利用不可）を Promise で持つ。
-// SDK を呼ぶ関数はすべてこれを待つ: configure の完了前に呼ぶと SDK が
-// 「Purchases must be configured…」で拒否するため（起動直後にペイウォールを開くと
-// 価格が取れないままになっていた）。
-// 利用不可 = APIキー未設定（Step0未完了）または configure の失敗。
+// ---- 初期化（v2.5.0。§6-3。再試行は v2.5.1 §6-8） ----
+// configure が成功するまで行い、その結果（true=準備完了 / false=利用不可）を Promise で持つ。
+// 成功したら二度と configure しない。SDK を呼ぶ関数はすべてこれを待つ: configure の完了前に
+// 呼ぶと SDK が「Purchases must be configured…」で拒否するため（起動直後にペイウォールを
+// 開くと価格が取れないままになっていた）。
+// 利用不可 = APIキー未設定（Step0未完了。SDK は呼ばない）または configure の失敗（次の呼び出しで再試行）。
 let ready = null
 
 function ensureReady() {
-  if (!ready) ready = configureOnce()
+  if (!ready) {
+    ready = configureOnce().then((ok) => {
+      // configure の失敗は記憶せず、次に SDK を使うとき（購入画面を開く等）に再試行する
+      // （v2.5.1。§6-8 ST-I10〜I13）。同時の呼び出しは、この Promise を共有して1回にまとまる。
+      // APIキー未設定のときは configureOnce が SDK を呼ばずに false を返すだけなので、
+      // 何度やり直しても configure は呼ばれない（ST-I12）。
+      if (!ok) ready = null
+      return ok
+    })
+  }
   return ready
 }
 
@@ -131,7 +140,13 @@ async function queryEntitlement(call, label) {
       console.warn(`[billing] ${label} timed out`)
       return { ok: false, status: 'unknown', reason: 'timeout' }
     }
-    return { ok: true, status: 'confirmed', entitled: isEntitled(r?.customerInfo) }
+    // 応答の中身が不正なら「不明」（v2.5.1。§6-8）。確定として扱うと有料の利用者が降格し得る。
+    const entitled = readEntitled(r?.customerInfo)
+    if (entitled === null) {
+      console.warn(`[billing] ${label} returned an invalid response`)
+      return { ok: false, status: 'unknown', reason: 'invalid' }
+    }
+    return { ok: true, status: 'confirmed', entitled }
   } catch (e) {
     console.warn(`[billing] ${label} failed`, e)
     return { ok: false, status: 'unknown', reason: 'failed' }
@@ -219,7 +234,7 @@ async function purchaseNative() {
     if (reason !== 'cancelled' && reason !== 'pending') console.warn('[billing] purchase failed', e)
     return { ok: false, reason }
   }
-  if (isEntitled(customerInfo)) {
+  if (readEntitled(customerInfo) === true) {
     applyEntitlement({ ok: true, status: 'confirmed', entitled: true })
     return { ok: true }
   }
@@ -297,12 +312,18 @@ function applyEntitlement(result, since) {
 
 // SDK からの更新通知。中身が不正（entitlements.active が無い）なら何もしない（ST-L04）。
 function onCustomerInfoUpdated(customerInfo) {
-  const active = customerInfo?.entitlements?.active
-  if (!active || typeof active !== 'object') return
-  applyEntitlement({ ok: true, status: 'confirmed', entitled: !!active[ENTITLEMENT_ID] })
+  const entitled = readEntitled(customerInfo)
+  if (entitled === null) return
+  applyEntitlement({ ok: true, status: 'confirmed', entitled })
 }
 
-const isEntitled = (customerInfo) => !!customerInfo?.entitlements?.active?.[ENTITLEMENT_ID]
+// customerInfo から権利の有無を読む。true / false、形が不正（entitlements.active が
+// 読めない）なら null（v2.5.1。§6-8）。更新通知・照会・復元・購入で共有し、扱いをそろえる。
+function readEntitled(customerInfo) {
+  const active = customerInfo?.entitlements?.active
+  if (!active || typeof active !== 'object') return null
+  return !!active[ENTITLEMENT_ID]
+}
 
 // ============================================================
 // SDK のエラー → reason の分類（v2.5.0。docs/test-design-istqb.md §6-1）。

@@ -457,3 +457,101 @@ describe('§6-5 復元の反映', () => {
     warn.mockRestore()
   })
 })
+
+// ============================================================
+// §6-8（v2.5.1）不正な応答は「不明」— 降格しない側にそろえる（更新通知の ST-L04 と同じ扱い）。
+// ============================================================
+describe('§6-8 不正な応答は「不明」', () => {
+  beforeEach(() => vi.spyOn(console, 'warn').mockImplementation(() => {}))
+  afterEach(() => vi.restoreAllMocks())
+
+  const INVALID = { ok: false, status: 'unknown', reason: 'invalid' }
+
+  it.each([
+    ['ST-Q01a', 'customerInfo なし', {}],
+    ['ST-Q01b', '応答が undefined', undefined],
+    ['ST-Q02', 'entitlements なし', { customerInfo: {} }],
+    ['ST-Q03a', 'active なし', { customerInfo: { entitlements: {} } }],
+    ['ST-Q03b', 'active が null', { customerInfo: { entitlements: { active: null } } }],
+  ])('%s: 照会の応答が不正（%s）→ unknown/invalid', async (_id, _label, response) => {
+    getCustomerInfo.mockResolvedValue(response)
+    const b = await loadBilling()
+    await expect(b.checkEntitlement()).resolves.toEqual(INVALID)
+  })
+
+  it('ST-Q04: 起動時リストア（cached paid）で応答が不正 → setPlan を呼ばない（降格しない）', async () => {
+    plan = 'paid'
+    getCustomerInfo.mockResolvedValue({ customerInfo: {} })
+    const b = await loadBilling()
+    await expect(b.restoreEntitlementOnStartup()).resolves.toEqual(INVALID)
+    expect(setPlan).not.toHaveBeenCalled()
+  })
+
+  it('ST-Q05: 復元の応答が不正 → unknown/invalid、setPlan を呼ばない', async () => {
+    plan = 'paid'
+    restorePurchasesMock.mockResolvedValue({ customerInfo: { entitlements: {} } })
+    const b = await loadBilling()
+    await expect(b.restorePurchases()).resolves.toEqual(INVALID)
+    expect(setPlan).not.toHaveBeenCalled()
+  })
+
+  it('回帰: active が {}（権利なしで確定）→ confirmed/false のまま', async () => {
+    getCustomerInfo.mockResolvedValue({ customerInfo: { entitlements: { active: {} } } })
+    const b = await loadBilling()
+    await expect(b.checkEntitlement()).resolves.toEqual({ ok: true, status: 'confirmed', entitled: false })
+  })
+})
+
+// ============================================================
+// §6-8（v2.5.1）初期化（configure）の失敗後の再試行。
+// ============================================================
+describe('§6-8 初期化の再試行', () => {
+  beforeEach(() => vi.spyOn(console, 'warn').mockImplementation(() => {}))
+  afterEach(() => vi.restoreAllMocks())
+
+  it('ST-I10: 1回目の configure が失敗 → 価格は null。次の呼び出しで再試行して成功 → 価格を返す', async () => {
+    configure.mockRejectedValueOnce(new Error('configure failed'))
+    const b = await loadBilling()
+    await expect(b.getPriceLabel()).resolves.toBeNull()
+    await expect(b.getPriceLabel()).resolves.toBe('¥300')
+    expect(configure).toHaveBeenCalledTimes(2)
+  })
+
+  it('ST-I11: 失敗のあと、同時に価格と照会を呼ぶ → configure は1回にまとまる', async () => {
+    configure.mockRejectedValueOnce(new Error('configure failed'))
+    const b = await loadBilling()
+    await b.initBilling()
+    const retry = deferred()
+    configure.mockReturnValueOnce(retry.promise)
+    const price = b.getPriceLabel()
+    const check = b.checkEntitlement()
+    await flush()
+    expect(configure).toHaveBeenCalledTimes(2)
+    retry.resolve()
+    await expect(price).resolves.toBe('¥300')
+    await expect(check).resolves.toEqual({ ok: true, status: 'confirmed', entitled: true })
+    expect(configure).toHaveBeenCalledTimes(2)
+  })
+
+  it('ST-I12: APIキー未設定では、何度呼んでも configure を呼ばない', async () => {
+    vi.stubEnv('VITE_REVENUECAT_API_KEY', '')
+    const b = await loadBilling()
+    await b.initBilling()
+    await b.getPriceLabel()
+    await b.getPriceLabel()
+    await b.checkEntitlement()
+    await b.purchase()
+    expect(configure).not.toHaveBeenCalled()
+  })
+
+  it('ST-I13: 失敗 → 再試行で成功 → さらに呼び出し: 更新通知の登録は1回、configure も増えない', async () => {
+    configure.mockRejectedValueOnce(new Error('configure failed'))
+    const b = await loadBilling()
+    await b.initBilling()
+    await b.getPriceLabel()
+    await b.getPriceLabel()
+    await b.checkEntitlement()
+    expect(configure).toHaveBeenCalledTimes(2)
+    expect(addCustomerInfoUpdateListener).toHaveBeenCalledTimes(1)
+  })
+})
