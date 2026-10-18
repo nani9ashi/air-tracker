@@ -349,3 +349,36 @@ describe('§6-6 閉じる・開き直すときの無効な遷移', () => {
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1), { timeout: 2000 })
   })
 })
+
+describe('§6-6 購入・復元の最中の plan の変化（C4b）', () => {
+  // 実際のアプリでは、billing が purchase() / restorePurchases() の完了前に setPlan('paid') する。
+  // その変化を「更新通知による有効化」と取り違えず、購入・復元の結果の表示に任せる。
+  it('ST-U14: 購入中に plan が paid → 途中で「Proが有効になりました」を出さず、「購入が完了しました」。onClose は1回', async () => {
+    const d = deferred()
+    purchaseMock.mockReturnValue(d.promise)
+    const { user, onClose } = await openSheet()
+    const store = await import('../store/store.js')
+    user.click(screen.getByRole('button', { name: '購入する' }))
+    await screen.findByRole('button', { name: '購入処理中…' })
+    act(() => store.setPlan('paid'))
+    expect(screen.queryByText('Proが有効になりました。')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '購入処理中…' })).toBeDisabled()
+    await act(async () => d.resolve({ ok: true }))
+    expect(await screen.findByText('購入が完了しました。ありがとうございます！')).toBeInTheDocument()
+    await sleep(1300)
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('ST-U15: 復元中に plan が paid → 途中で「Proが有効になりました」を出さず、「購入を復元しました」', async () => {
+    const d = deferred()
+    restoreMock.mockReturnValue(d.promise)
+    const { user } = await openSheet()
+    const store = await import('../store/store.js')
+    user.click(screen.getByRole('button', { name: '購入を復元' }))
+    await screen.findByRole('button', { name: '確認中…' })
+    act(() => store.setPlan('paid'))
+    expect(screen.queryByText('Proが有効になりました。')).not.toBeInTheDocument()
+    await act(async () => d.resolve({ ok: true, status: 'confirmed', entitled: true }))
+    expect(await screen.findByText('購入を復元しました。')).toBeInTheDocument()
+  })
+})
