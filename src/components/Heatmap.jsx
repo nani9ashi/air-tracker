@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useLayoutEffect, useMemo, useRef } from 'react'
 import { sortedHistory } from '../lib/stats.js'
 import { toDateInputValue, startOfDayLocal, computeStatus } from '../lib/date.js'
 import { getTextZoom } from '../lib/textZoom.js'
@@ -108,13 +108,22 @@ export default function Heatmap({ history, intervalDays = 14, weeks = 18 }) {
   const monthLabels = monthLabelsFor(columns, getTextZoom())
   const pumpCount = columns.flat().filter((c) => c.level === 'pump').length
 
+  // 最新の週（右端）を最初に表示する（v2.5.1。§7 UI-H02〜H04）。記録が長いと古い週から
+  // 表示され、直近を見るのに横スクロールが必要だった。列数が変わったとき（記録の追加・
+  // 表示期間の変更）だけ右端へ戻し、それ以外の再描画では利用者のスクロール位置を保つ。
+  const scrollRef = useRef(null)
+  useLayoutEffect(() => {
+    const el = scrollRef.current
+    if (el) el.scrollLeft = el.scrollWidth // ブラウザが上限（scrollWidth − clientWidth）に丸める
+  }, [columns.length])
+
   return (
     <div
       className="heatmap"
       role="img"
       aria-label={`直近${weeks}週間の空気入れ記録ヒートマップ。記録${pumpCount}件。`}
     >
-      <div className="heatmap__scroll">
+      <div className="heatmap__scroll" ref={scrollRef}>
         <div className="heatmap__body">
           <div className="heatmap__months" aria-hidden="true">
             {monthLabels.map((l, i) => (
