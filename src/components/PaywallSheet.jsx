@@ -69,6 +69,9 @@ export default function PaywallSheet({ open, onClose, source }) {
   const [price, setPrice] = useState(undefined) // undefined=取得中 / string / null=取得できなかった
   const session = useRef(0)
   const closeTimer = useRef(0)
+  // 購入・復元の最中。billing はその完了前に setPlan('paid') するため、この間の plan の変化は
+  // 「更新通知による有効化」ではなく、購入・復元の結果の表示に任せる（ST-U14・U15）。
+  const busy = useRef(false)
   const plan = useStore((s) => s.settings.plan)
   const prevPlan = useRef(plan)
 
@@ -85,6 +88,7 @@ export default function PaywallSheet({ open, onClose, source }) {
     track(EV.PAYWALL, { source })
     setPhase('idle')
     setDetail(null)
+    busy.current = false
     loadPrice(token)
     return () => {
       // 閉じた（または画面が消えた）→ 進行中の結果を無効化し、自動で閉じるタイマーも解除する。
@@ -105,18 +109,20 @@ export default function PaywallSheet({ open, onClose, source }) {
   useEffect(() => {
     const was = prevPlan.current
     prevPlan.current = plan
-    if (!open || was === 'paid' || plan !== 'paid') return
+    if (!open || busy.current || was === 'paid' || plan !== 'paid') return
     showSuccess('activated')
     // eslint-disable-next-line react-hooks/exhaustive-deps -- plan の変化にだけ反応する
   }, [plan])
 
   const handlePurchase = async () => {
     const token = session.current
+    busy.current = true
     setPhase('purchasing')
     setDetail(null)
     track(EV.PURCHASE, { source: 'started' })
     const res = await purchase()
     if (token !== session.current) return // 閉じた・開き直したあとに届いた古い結果
+    busy.current = false
     if (res.ok) {
       track(EV.PURCHASE, { source: res.restored ? 'restored' : 'success' })
       showSuccess(res.restored ? 'purchase-restored' : 'purchased')
@@ -137,10 +143,12 @@ export default function PaywallSheet({ open, onClose, source }) {
 
   const handleRestore = async () => {
     const token = session.current
+    busy.current = true
     setPhase('restoring')
     setDetail(null)
     const res = await restorePurchases()
     if (token !== session.current) return
+    busy.current = false
     if (res.status === 'confirmed' && res.entitled) {
       track(EV.PURCHASE, { source: 'restored' })
       showSuccess('restored')
