@@ -44,13 +44,27 @@ export function totalCount(history) {
   return sortedHistory(history).length
 }
 
-// 平均間隔を設定サイクルと比較した「傾向」（ヒートマップと同じサイクル基準）。
-// 記録2件未満は平均が出せないので '—'。
-export function cycleTrend(history, intervalDays) {
-  const avg = averageIntervalDays(history)
+// 「直近傾向」の判定に使う範囲（日）。v2.5.2。docs/test-design-istqb.md §3-4。
+export const TREND_WINDOW_DAYS = 90
+
+// 直近の間隔の平均を設定サイクルと比較した「傾向」（統計の「直近傾向」）。
+// - 数えるのは、終わり（後の記録）が now から TREND_WINDOW_DAYS 日以内の間隔
+//   （ちょうど90日前は含める。始まりが範囲より前でも1回分まるごと数える）。
+// - 範囲に1つも無ければ最新の1回で判定する（記録が2件以上あれば必ず判定できる）。
+// - 平均は丸めずに比べる（v2.5.1 までは小数第1位に丸めてから比べていた）。
+//   比率 = 間隔の合計 ÷（間隔の数 × 設定の間隔）。
+// 記録2件未満は間隔が無いので '—'。「平均間隔」の表示（averageIntervalDays）は全期間のまま。
+export function cycleTrend(history, intervalDays, now = new Date()) {
+  const s = sortedHistory(history)
+  if (s.length < 2) return { label: '—', tone: 'default' }
   const interval = Number(intervalDays) || 14
-  if (avg == null) return { label: '—', tone: 'default' }
-  const r = avg / interval
+  const gapAt = (i) => daysBetween(s[i - 1].date, new Date(s[i].date))
+  const gaps = []
+  for (let i = 1; i < s.length; i++) {
+    if (daysBetween(s[i].date, now) <= TREND_WINDOW_DAYS) gaps.push(gapAt(i))
+  }
+  if (gaps.length === 0) gaps.push(gapAt(s.length - 1))
+  const r = gaps.reduce((sum, g) => sum + g, 0) / (gaps.length * interval)
   if (r <= 1.0) return { label: '順調', tone: 'accent' }
   if (r <= 1.25) return { label: '遅め', tone: 'warning' }
   return { label: '遅延', tone: 'danger' }
