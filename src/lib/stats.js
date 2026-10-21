@@ -52,6 +52,6 @@ export function cycleTrend(history, intervalDays) {
   if (avg == null) return { label: '—', tone: 'default' }
   const r = avg / interval
   if (r <= 1.0) return { label: '順調', tone: 'accent' }
-  if (r <= 1.25) return { label: 'やや遅れ', tone: 'warning' }
-  return { label: '遅れ', tone: 'danger' }
+  if (r <= 1.25) return { label: '遅め', tone: 'warning' }
+  return { label: '遅延', tone: 'danger' }
 }
