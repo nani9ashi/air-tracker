@@ -227,11 +227,11 @@ describe('cycleTrend — 比率境界 BVA', () => {
   it.each([
     ['avg=7 / interval=14 → 比率 0.5', [7], 14, '順調', 'accent'],
     ['★avg=14 / interval=14 → 比率 1.00 ちょうど', [14], 14, '順調', 'accent'],
-    ['★avg=14.1 / interval=14 → 比率 1.007（1目盛り上）', [14, 14, 14, 14, 14, 15, 14, 14, 14, 14], 14, 'やや遅れ', 'warning'],
-    ['avg=12 / interval=10 → 比率 1.2', [12], 10, 'やや遅れ', 'warning'],
-    ['★avg=12.5 / interval=10 → 比率 1.25 ちょうど', [12, 13], 10, 'やや遅れ', 'warning'],
-    ['★avg=12.6 / interval=10 → 比率 1.26（1目盛り上）', [12, 13, 13, 13, 12], 10, '遅れ', 'danger'],
-    ['avg=28 / interval=14 → 比率 2.0', [28], 14, '遅れ', 'danger'],
+    ['★avg=14.1 / interval=14 → 比率 1.007（1目盛り上）', [14, 14, 14, 14, 14, 15, 14, 14, 14, 14], 14, '遅め', 'warning'],
+    ['avg=12 / interval=10 → 比率 1.2', [12], 10, '遅め', 'warning'],
+    ['★avg=12.5 / interval=10 → 比率 1.25 ちょうど', [12, 13], 10, '遅め', 'warning'],
+    ['★avg=12.6 / interval=10 → 比率 1.26（1目盛り上）', [12, 13, 13, 13, 12], 10, '遅延', 'danger'],
+    ['avg=28 / interval=14 → 比率 2.0', [28], 14, '遅延', 'danger'],
     ['avg=0 / 同日2件 → 比率 0', [0], 14, '順調', 'accent'],
   ])('BVA: %s → %s', (_label, gaps, interval, expectedLabel, expectedTone) => {
     expect(cycleTrend(seq(gaps), interval)).toEqual({ label: expectedLabel, tone: expectedTone })
@@ -245,7 +245,7 @@ describe('cycleTrend — 比率境界 BVA', () => {
     ['undefined', undefined],
   ])('EP: intervalDays が無効(%s)なら既定 14 で判定', (_label, bad) => {
     expect(cycleTrend(seq([14]), bad).label).toBe('順調')
-    expect(cycleTrend(seq([28]), bad).label).toBe('遅れ')
+    expect(cycleTrend(seq([28]), bad).label).toBe('遅延')
   })
 
   it('EP: 平均は丸めてから比較される（14.04 は 14.0 として順調）', () => {
