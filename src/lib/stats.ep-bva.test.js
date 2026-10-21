@@ -5,7 +5,7 @@
 // 既存の stats.test.js（代表値テスト）は変更せず、本ファイルで
 // 件数境界・間隔境界・比率境界・丸め・無効パーティションを埋める。
 // ============================================================
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import {
   sortedHistory,
   averageIntervalDays,
@@ -213,8 +213,10 @@ describe('totalCount', () => {
 
 // ------------------------------------------------------------
 // §3-2 cycleTrend — 比率境界（<= 1.0 / <= 1.25）
-// averageIntervalDays が小数第1位に丸めてから比較される点に注意。
+// v2.5.2: 判定は直近90日の間隔（§3-4）で、平均は丸めずに比べる。
+// 境界の表は、すべての間隔が範囲に入るよう基準日を最後の記録の日に固定する。
 // ------------------------------------------------------------
+const lastDay = (hist) => new Date(hist[hist.length - 1].date)
 describe('cycleTrend — 比率境界 BVA', () => {
   it.each([
     ['0件', []],
@@ -231,10 +233,13 @@ describe('cycleTrend — 比率境界 BVA', () => {
     ['avg=12 / interval=10 → 比率 1.2', [12], 10, '遅め', 'warning'],
     ['★avg=12.5 / interval=10 → 比率 1.25 ちょうど', [12, 13], 10, '遅め', 'warning'],
     ['★avg=12.6 / interval=10 → 比率 1.26（1目盛り上）', [12, 13, 13, 13, 12], 10, '遅延', 'danger'],
+    ['★avg=5.0 / interval=4 → 比率 1.25 ちょうど（3回）', [5, 5, 5], 4, '遅め', 'warning'],
+    ['avg=5.33 / interval=4 → 比率 1.33（3回）', [5, 5, 6], 4, '遅延', 'danger'],
     ['avg=28 / interval=14 → 比率 2.0', [28], 14, '遅延', 'danger'],
     ['avg=0 / 同日2件 → 比率 0', [0], 14, '順調', 'accent'],
   ])('BVA: %s → %s', (_label, gaps, interval, expectedLabel, expectedTone) => {
-    expect(cycleTrend(seq(gaps), interval)).toEqual({ label: expectedLabel, tone: expectedTone })
+    const hist = seq(gaps)
+    expect(cycleTrend(hist, interval, lastDay(hist))).toEqual({ label: expectedLabel, tone: expectedTone })
   })
 
   it.each([
@@ -244,14 +249,60 @@ describe('cycleTrend — 比率境界 BVA', () => {
     ['null', null],
     ['undefined', undefined],
   ])('EP: intervalDays が無効(%s)なら既定 14 で判定', (_label, bad) => {
-    expect(cycleTrend(seq([14]), bad).label).toBe('順調')
-    expect(cycleTrend(seq([28]), bad).label).toBe('遅延')
+    expect(cycleTrend(seq([14]), bad, lastDay(seq([14]))).label).toBe('順調')
+    expect(cycleTrend(seq([28]), bad, lastDay(seq([28]))).label).toBe('遅延')
   })
 
-  it('EP: 平均は丸めてから比較される（14.04 は 14.0 として順調）', () => {
-    // gap 14 が 24本 + 15 が 1本 → 351/25 = 14.04 → 丸めて 14.0 → 比率 1.0 → 順調
-    const gaps = [...Array(24).fill(14), 15]
-    expect(averageIntervalDays(seq(gaps))).toBe(14)
-    expect(cycleTrend(seq(gaps), 14).label).toBe('順調')
+  it('EP: 平均は丸めずに比べる（v2.5.2 で期待値を変更。平均 3.04日・間隔3日は遅め）', () => {
+    // gap 3 が 24本 + 4 が 1本 → 76/25 = 3.04日（75日間で、すべて直近90日に入る）。
+    // v2.5.1 までは小数第1位に丸めて 3.0 → 比率 1.0 →「順調」だった。平均が設定を
+    // 上回っている以上「遅め」が正しい。表示用の平均間隔（averageIntervalDays）は従来どおり丸める。
+    const hist = seq([...Array(24).fill(3), 4])
+    expect(averageIntervalDays(hist)).toBe(3)
+    expect(cycleTrend(hist, 3, lastDay(hist)).label).toBe('遅め')
+  })
+})
+
+// ------------------------------------------------------------
+// §3-4 cycleTrend — 判定に使う範囲（直近90日。v2.5.2）
+// 終わり（後の記録）が直近90日以内の間隔だけを数える。1つも無ければ最新の1回で判定する。
+// ------------------------------------------------------------
+describe('cycleTrend — 直近90日 §3-4', () => {
+  const NOW = new Date(2026, 9, 22, 12)
+  // 基準日から n 日前の正午（ローカル）。記録は「何日前」の並びで書く。
+  const ago = (n) => {
+    const d = new Date(NOW)
+    d.setDate(d.getDate() - n)
+    return d
+  }
+  const hist = (...daysAgo) => daysAgo.map((n, i) => ({ id: `w${i}`, date: ago(n).toISOString() }))
+
+  afterEach(() => vi.useRealTimers())
+
+  it('BVA-W01: 90日ちょうど前に終わった間隔（28日）は含める → 遅延', () => {
+    expect(cycleTrend(hist(118, 90, 76, 62), 14, NOW).label).toBe('遅延')
+  })
+
+  it('BVA-W02: 91日前に終わった間隔は含めない → 順調', () => {
+    expect(cycleTrend(hist(119, 91, 77, 63), 14, NOW).label).toBe('順調')
+  })
+
+  it('EP-W03: 90日以内に終わった間隔が無い → 最新の1回（14日）で判定 → 順調', () => {
+    // 全期間の平均（(20+14)/2 = 17日）なら「遅め」になるデータ
+    expect(cycleTrend(hist(220, 200, 186), 14, NOW).label).toBe('順調')
+  })
+
+  it('EP-W04: 90日より前の遅れ（60日）は数えない → 順調', () => {
+    // 全期間の平均（(60+14×8)/9 ≒ 19.1日）なら「遅延」になるデータ
+    expect(cycleTrend(hist(180, 120, 106, 92, 78, 64, 50, 36, 22, 8), 14, NOW).label).toBe('順調')
+  })
+
+  it('EP-W05: 基準日を省略すると今日を基準にする', () => {
+    // W01 のデータを、今日＝基準日の翌日として評価する → 28日の間隔は91日前に終わったので含めない
+    vi.useFakeTimers()
+    const tomorrow = new Date(NOW)
+    tomorrow.setDate(tomorrow.getDate() + 1)
+    vi.setSystemTime(tomorrow)
+    expect(cycleTrend(hist(118, 90, 76, 62), 14).label).toBe('順調')
   })
 })
