@@ -62,10 +62,10 @@ describe('cycleTrend', () => {
     const hist = [h('a', 2026, 6, 1), h('b', 2026, 6, 8)] // 平均7
     expect(cycleTrend(hist, 14).label).toBe('順調')
   })
-  it('やや遅れ / 遅れ の境界', () => {
+  it('遅め / 遅延 の境界（v2.5.2 で「やや遅れ / 遅れ」から文言を変更）', () => {
     const slight = [h('a', 2026, 6, 1), h('b', 2026, 6, 17)] // 平均16, 16/14≈1.14
-    expect(cycleTrend(slight, 14).label).toBe('やや遅れ')
+    expect(cycleTrend(slight, 14).label).toBe('遅め')
     const late = [h('a', 2026, 6, 1), h('b', 2026, 6, 21)] // 平均20, 20/14≈1.43
-    expect(cycleTrend(late, 14).label).toBe('遅れ')
+    expect(cycleTrend(late, 14).label).toBe('遅延')
   })
 })
