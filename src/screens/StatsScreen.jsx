@@ -6,7 +6,7 @@ import Icon from '../components/Icon.jsx'
 import PaywallSheet from '../components/PaywallSheet.jsx'
 import { useStore } from '../store/useStore.js'
 import { getActiveAirItem, getLimits } from '../store/store.js'
-import { averageIntervalDays, currentStreak, totalCount, cycleTrend, sortedHistory } from '../lib/stats.js'
+import { recentAverageIntervalDays, currentStreak, totalCount, cycleTrend, sortedHistory } from '../lib/stats.js'
 import { daysBetween } from '../lib/date.js'
 import { track, EV } from '../lib/analytics.js'
 import './StatsScreen.css'
@@ -14,7 +14,8 @@ import './StatsScreen.css'
 export default function StatsScreen() {
   const state = useStore()
   const item = getActiveAirItem(state)
-  const avg = averageIntervalDays(item.history)
+  // 「直近平均」と「直近傾向」は同じ直近90日の間隔で計算する（v2.5.3。stats.js の recentIntervalGaps）。
+  const avg = recentAverageIntervalDays(item.history)
   const streak = currentStreak(item.history, item.intervalDays)
   const total = totalCount(item.history)
   const trend = cycleTrend(item.history, item.intervalDays)
@@ -48,7 +49,7 @@ export default function StatsScreen() {
       <main className="stats__main">
         <GlassCard variant="glass">
           <div className="stats__tiles">
-            <StatTile value={avg == null ? '—' : avg} unit={avg == null ? '' : '日'} label="平均間隔" tone="accent" />
+            <StatTile value={avg == null ? '—' : avg} unit={avg == null ? '' : '日'} label="直近平均" tone="accent" />
             <StatTile value={streak} unit="回" label="連続達成" />
             <StatTile value={trend.label} label="直近傾向" tone={trend.tone} text={trend.label !== '—'} />
           </div>

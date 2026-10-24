@@ -92,7 +92,7 @@ export default function PreviewScreen() {
       <Section title="Stat Tiles (in card)">
         <GlassCard variant="glass">
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
-            <StatTile value={12} unit="日" label="平均間隔" tone="accent" />
+            <StatTile value={12} unit="日" label="直近平均" tone="accent" />
             <StatTile value={3} unit="回" label="連続達成" />
             <StatTile value="安定" label="直近傾向" tone="accent" />
           </div>

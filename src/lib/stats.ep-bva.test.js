@@ -12,6 +12,7 @@ import {
   currentStreak,
   totalCount,
   cycleTrend,
+  recentAverageIntervalDays,
 } from './stats.js'
 
 const h = (id, y, m, d) => ({ id, date: new Date(y, m - 1, d, 12).toISOString() })
@@ -306,5 +307,53 @@ describe('cycleTrend — 直近90日 §3-4', () => {
     tomorrow.setDate(tomorrow.getDate() + 1)
     vi.setSystemTime(tomorrow)
     expect(cycleTrend(hist(118, 90, 76, 62), 14).label).toBe('順調')
+  })
+})
+
+// ------------------------------------------------------------
+// §3-5 recentAverageIntervalDays — 直近の平均（v2.5.3）
+// 間隔の選び方は cycleTrend（§3-4）と共有。表示用に小数第1位へ丸める。
+// ------------------------------------------------------------
+describe('recentAverageIntervalDays — 直近90日 §3-5', () => {
+  // 実行日と重ならない日付に固定する（§3-4 と同じ理由）。
+  const NOW = new Date(2027, 2, 10, 12)
+  const ago = (n) => {
+    const d = new Date(NOW)
+    d.setDate(d.getDate() - n)
+    return d
+  }
+  const hist = (...daysAgo) => daysAgo.map((n, i) => ({ id: `a${i}`, date: ago(n).toISOString() }))
+
+  afterEach(() => vi.useRealTimers())
+
+  it.each([
+    ['0件', []],
+    ['1件', [{ id: 'x', date: new Date(2027, 2, 1, 12).toISOString() }]],
+  ])('EP-A01: 記録2件未満（%s）は null', (_label, input) => {
+    expect(recentAverageIntervalDays(input, NOW)).toBeNull()
+  })
+
+  it('BVA-A02: 90日ちょうど前に終わった間隔を含める（28, 14, 14 → 18.7）', () => {
+    expect(recentAverageIntervalDays(hist(118, 90, 76, 62), NOW)).toBe(18.7)
+  })
+
+  it('BVA-A03: 91日前に終わった間隔は含めない（14, 14 → 14）', () => {
+    expect(recentAverageIntervalDays(hist(119, 91, 77, 63), NOW)).toBe(14)
+  })
+
+  it('EP-A04: 範囲に無ければ最新の1回（全期間の平均なら 17）', () => {
+    expect(recentAverageIntervalDays(hist(220, 200, 186), NOW)).toBe(14)
+  })
+
+  it('EP-A05: 表示用に小数第1位へ丸める（14, 14, 15 → 14.3）', () => {
+    expect(recentAverageIntervalDays(hist(43, 29, 15, 0), NOW)).toBe(14.3)
+  })
+
+  it('EP-A06: 基準日を省略すると今日を基準にする', () => {
+    vi.useFakeTimers()
+    const tomorrow = new Date(NOW)
+    tomorrow.setDate(tomorrow.getDate() + 1)
+    vi.setSystemTime(tomorrow)
+    expect(recentAverageIntervalDays(hist(118, 90, 76, 62))).toBe(14)
   })
 })
