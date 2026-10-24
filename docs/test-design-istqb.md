@@ -25,7 +25,8 @@
 | `date.js` | EP + BVA | `src/lib/date.ep-bva.test.js` | 150 |
 | `date.js`（DST） | BVA（TZ 固定） | `src/lib/date.dst-tz.test.js` | 29 |
 | `notify-plan.js` | デシジョンテーブル + 時刻 BVA | `src/lib/notify-plan.dt.test.js` | 58 |
-| `stats.js` | EP + BVA（v2.5.2 で §3-4 直近90日を追加） | `src/lib/stats.ep-bva.test.js` | 90 |
+| `stats.js` | EP + BVA（v2.5.2 で §3-4 直近90日、v2.5.3 で §3-5 直近平均を追加） | `src/lib/stats.ep-bva.test.js` | 97 |
+| `StatsScreen.jsx`（統計のタイル・v2.5.3 §8） | 描画の確認 | `src/screens/StatsScreen.tiles.test.jsx` | 3 |
 | `store.js`（ミューテータ） | 状態遷移 + 無効遷移マトリクス | `src/store/store.state-transition.test.js` | 109 |
 | `store.js`（migrate / import） | EP + ペアワイズ | `src/store/store.migrate-pairwise.test.js` | 173 |
 | `reminder-sync.js` | 状態遷移 | `src/lib/reminder-sync.test.js` | 18 |
